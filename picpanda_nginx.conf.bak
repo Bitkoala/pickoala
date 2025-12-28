@@ -1,0 +1,58 @@
+server
+{
+    listen 80;
+    server_name 8.134.53.152;
+    index index.html index.htm index.php;
+    root /www/wwwroot/8.134.53.152;
+
+    # 默认文档及字符集
+    charset utf-8;
+
+    # 1. 前端路由支持 (解决 Vue History 模式刷新 404)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 2. 转发 API 请求到后�?(FastAPI)
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 增加一些超时设置，防止上传大文件超�?
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # 3. 转发图片资源 (推荐：由后端统一处理，支持防盗链和封�?
+    # 使用 ^~ 防止被下方的静态资源正则匹配覆�?
+    location ^~ /uploads {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 静态资源缓存配�?(可�?
+    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|ico)$
+    {
+        expires      30d;
+        error_log /dev/null;
+        access_log /dev/null;
+    }
+
+    location ~ .*\.(js|css)?$
+    {
+        expires      12h;
+        error_log /dev/null;
+        access_log /dev/null;
+    }
+
+    # 宝塔默认日志配置
+    access_log  /www/wwwlogs/PicKoala.log;
+    error_log  /www/wwwlogs/PicKoala.error.log;
+}

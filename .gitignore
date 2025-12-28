@@ -1,0 +1,90 @@
+# Environment
+.env
+.env.local
+.env.*.local
+.venv
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing & Coverage
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+
+# Frontend Build
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.sublime-workspace
+*.sublime-project
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+backend/logs/
+
+# Uploads (Keep gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Project Specific
+scripts.zip
+scripts/
+*.zip
+*.rar
+*.tar.gz
+check_syntax.py
+debug_vip_status.py
+package-lock.json

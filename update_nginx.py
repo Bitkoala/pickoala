@@ -1,0 +1,106 @@
+
+import os
+
+nginx_content = r"""# 在 server 块外部定义缓存路径
+# 提示：请确保已执行过 mkdir -p /www/swift_cache 命令
+proxy_cache_path /www/swift_cache levels=1:2 keys_zone=img_cache:100m max_size=10g inactive=30d use_temp_path=off;
+
+server
+{
+    listen 80;
+    server_name 8.134.53.152; 
+    index index.html index.htm index.php;
+    root /www/wwwroot/8.134.53.152;
+    include /www/server/panel/vhost/nginx/extension/8.134.53.152/*.conf;
+
+    # 默认文档及字符集
+    charset utf-8;
+
+    # 【新增】允许最大 2048M (2GB) 的上传限制
+    client_max_body_size 2048M;
+
+    # ========================================================
+    # 1. 转发 S3 图片资源到 B服务器 (FRP 出口)
+    # ========================================================
+    location ^~ /img/ {
+        # 【修改重点】这里将 127.0.0.1 改为 B 服务器的公网 IP
+        # 此时 A服务器 会请求 B服务器 的 9100 端口，B 再通过 FRP 转发给 NAS
+        proxy_pass http://129.204.252.237:9100/img/;
+
+        # 启用磁盘缓存，减少 A 与 B 之间的公网流量传输
+        proxy_cache img_cache;
+        proxy_cache_valid 200 302 30d;
+        proxy_cache_valid 404 1m;
+        proxy_cache_key $host$uri$is_args$args;
+        add_header X-Cache-Status $upstream_cache_status;
+
+        # 基础请求头
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 隐藏 MinIO 特有头信息
+        proxy_hide_header X-Amz-Request-Id;
+        proxy_hide_header X-Amz-Id-2;
+        proxy_hide_header x-amz-meta-code;
+        proxy_ignore_headers Set-Cookie;
+
+        # 超时设置（跨服务器建议略微调大）
+        proxy_connect_timeout 15s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # 2. 前端路由支持 (Vue History 模式)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 3. 转发 API 请求到本地后端 (图床程序在 A 服务器本地)
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # 4. 转发旧的 uploads 资源
+    location ^~ /uploads {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 5. 静态资源处理
+    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|ico)$
+    {
+        expires      30d;
+        error_log /dev/null;
+        access_log /dev/null;
+    }
+
+    location ~ .*\.(js|css)?$
+    {
+        expires      12h;
+        error_log /dev/null;
+        access_log /dev/null;
+    }
+
+    # 日志配置
+    access_log  /www/wwwlogs/picpanda.log;
+    error_log  /www/wwwlogs/picpanda.error.log;
+}
+"""
+
+with open("picpanda_nginx.conf", "w", encoding="utf-8") as f:
+    f.write(nginx_content)
+
+print("Updates successful")

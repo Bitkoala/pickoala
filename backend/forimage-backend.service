@@ -1,0 +1,29 @@
+[Unit]
+Description=ForImage Backend Service
+After=network.target
+
+[Service]
+# 使用 root 用户运行
+User=root
+Group=root
+
+# 工作目录
+WorkingDirectory=/www/wwwroot/forimage/backend
+
+# 启动命令：改回使用我们验证成功的 start.sh 脚本
+# 因为 start.sh 能自动找到正确的 python 路径，比硬编码稳得多
+ExecStart=/bin/bash /www/wwwroot/forimage/backend/start.sh
+
+# 崩溃自动重启
+Restart=always
+RestartSec=5
+
+# 环境变量
+Environment=LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+# 系统日志 (Systemd 也会记录一份)
+StandardOutput=append:/www/wwwroot/forimage/backend/service.log
+StandardError=append:/www/wwwroot/forimage/backend/service.log
+
+[Install]
+WantedBy=multi-user.target
