@@ -1805,5 +1805,10 @@ onUnmounted(() => {
     bottom: 16px;
     right: 16px;
   }
+  
+  .features {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 </style>
