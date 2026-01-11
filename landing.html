@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-lang-key="title">PicKoala - 简洁优雅的现代化全功能图床</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                    },
+                    backgroundImage: {
+                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-x: hidden;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(40px);
+        }
+
+        /* Swiper Customization */
+        .swiper {
+            width: 100%;
+            height: 100%;
+            border-radius: 1.5rem;
+        }
+
+        .swiper-button-next,
+        .swiper-button-prev {
+            color: white !important;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(4px);
+            width: 44px !important;
+            height: 44px !important;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .swiper-button-next:after,
+        .swiper-button-prev:after {
+            font-size: 18px !important;
+            font-weight: bold;
+        }
+
+        .swiper-button-next:hover,
+        .swiper-button-prev:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+
+        .swiper-pagination-bullet-active {
+            background: var(--primary) !important;
+            width: 24px !important;
+            border-radius: 4px !important;
+        }
+
+        /* Nav Link Hover Effect */
+        .nav-link {
+            position: relative;
+            font-weight: 500;
+            color: #64748b;
+            transition: color 0.3s;
+        }
+
+        .dark .nav-link {
+            color: #94a3b8;
+        }
+
+        .nav-link:hover {
+            color: #3b82f6;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -4px;
+            left: 0;
+            background-color: #3b82f6;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 px-6 py-4">
+        <div
+            class="max-w-7xl mx-auto flex items-center justify-between glass rounded-2xl px-6 py-3 shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <div class="flex items-center gap-2">
+                <img id="navLogo" src="https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp" alt="PicKoala Logo"
+                    class="h-10 w-auto">
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-xl font-bold tracking-tight">考拉云图</span>
+                    <span
+                        class="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-extrabold uppercase tracking-wider border border-primary/20">PicKoala</span>
+                </div>
+            </div>
+
+            <div class="hidden md:flex items-center gap-10">
+                <a href="#features" class="nav-link text-sm tracking-wide" data-lang-key="nav_features">功能</a>
+                <a href="#pricing" class="nav-link text-sm tracking-wide" data-lang-key="nav_pricing">资费</a>
+                <a href="#security" class="nav-link text-sm tracking-wide" data-lang-key="nav_security">安全</a>
+                <a href="#opensource" class="nav-link text-sm tracking-wide" data-lang-key="nav_opensource">开源</a>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button onclick="toggleLang()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i class="fas fa-globe text-slate-500"></i>
+                    <span id="langLabel" class="ml-1 text-xs font-bold">EN</span>
+                </button>
+                <button onclick="toggleTheme()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i id="themeIcon" class="fas fa-moon text-slate-500"></i>
+                </button>
+                <a href="https://pickoala.com/"
+                    class="hidden sm:inline-flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold text-sm transition-all hover:shadow-lg hover:shadow-primary/30 active:scale-95">
+                    <span data-lang-key="nav_launch">进入应用</span>
+                    <i class="fas fa-arrow-right text-xs"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative pt-40 pb-20 px-6 overflow-hidden">
+        <div class="blob top-[-10%] left-[-10%] animate-pulse"></div>
+        <div class="blob bottom-[10%] right-[-10%] animate-pulse" style="animation-delay: 2s;"></div>
+
+        <div class="max-w-5xl mx-auto text-center">
+            <div data-aos="fade-up">
+                <span
+                    class="inline-block py-1 px-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-primary text-xs font-bold tracking-wider uppercase mb-6"
+                    data-lang-key="badge">All-in-One 图床解决方案</span>
+                <h1 class="text-5xl md:text-7xl font-extrabold mb-8 leading-tight">
+                    <span data-lang-key="hero_t1">简单、快速且</span><br />
+                    <span class="gradient-text" data-lang-key="hero_t2">极其强大</span>
+                </h1>
+                <p class="text-lg md:text-xl text-slate-500 dark:text-slate-400 mb-12 max-w-2xl mx-auto leading-relaxed"
+                    data-lang-key="hero_desc">
+                    PicKoala 是为您量身定制的现代化托管平台。支持图片、视频、文件的高效存储与分发，专为追求极致体验的创作者打造。
+                </p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4" data-aos="fade-up"
+                data-aos-delay="200">
+                <a href="https://pickoala.com/"
+                    class="w-full sm:w-auto px-10 py-4 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-2xl font-bold text-lg hover:shadow-2xl transition-all hover:-translate-y-1 active:scale-95"
+                    data-lang-key="cta_main">
+                    立即开始上传
+                </a>
+                <a href="#features"
+                    class="w-full sm:w-auto px-10 py-4 glass rounded-2xl font-bold text-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all hover:-translate-y-1"
+                    data-lang-key="cta_sub">
+                    了解更多功能
+                </a>
+            </div>
+
+            <!-- Mockup -->
+            <div class="mt-20 relative px-4" data-aos="zoom-in" data-aos-delay="400">
+                <div
+                    class="relative max-w-5xl mx-auto p-2 bg-slate-900/5 dark:bg-white/5 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-3xl">
+
+                    <!-- Swiper Container -->
+                    <div class="swiper mySwiper overflow-hidden">
+                        <div class="swiper-wrapper">
+                            <!-- Slide 1: General Dashboard -->
+                            <div class="swiper-slide">
+                                <img src="https://pickoala.com/img/images/2026/01/05/OnKQKWQK.webp"
+                                    alt="PicKoala General Dashboard"
+                                    class="rounded-[1.5rem] shadow-2xl w-full object-cover">
+                            </div>
+                            <!-- Slide 2: Aurora Dashboard -->
+                            <div class="swiper-slide">
+                                <img src="https://pickoala.com/img/images/2026/01/05/IBTJMNOZ.webp"
+                                    alt="PicKoala Aurora Dashboard"
+                                    class="rounded-[1.5rem] shadow-2xl w-full object-cover">
+                            </div>
+                            <!-- Slide 3: Aurora Home -->
+                            <div class="swiper-slide">
+                                <img src="https://pickoala.com/img/images/2026/01/05/rtSbxDDV.webp"
+                                    alt="PicKoala Aurora Home" class="rounded-[1.5rem] shadow-2xl w-full object-cover">
+                            </div>
+                        </div>
+                        <!-- Add Arrows -->
+                        <div class="swiper-button-next"></div>
+                        <div class="swiper-button-prev"></div>
+                        <!-- Add Pagination -->
+                        <div class="swiper-pagination"></div>
+                    </div>
+
+                    <!-- Floating elements -->
+                    <div class="absolute -top-10 -right-10 hidden lg:block animate-float z-10">
+                        <div class="glass p-4 rounded-2xl shadow-xl flex items-center gap-3">
+                            <div
+                                class="w-10 h-10 bg-secondary/20 rounded-lg flex items-center justify-center text-secondary">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="text-left">
+                                <p class="text-xs font-bold uppercase text-slate-400" data-lang-key="stat_cdn_title">CDN
+                                    状态</p>
+                                <p class="text-sm font-bold" data-lang-key="stat_cdn_desc">全球加速已就绪</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="absolute -bottom-6 -left-10 hidden lg:block animate-float z-10"
+                        style="animation-delay: 1.5s;">
+                        <div class="glass p-4 rounded-2xl shadow-xl flex items-center gap-3">
+                            <div class="w-10 h-10 bg-accent/20 rounded-lg flex items-center justify-center text-accent">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="text-left">
+                                <p class="text-xs font-bold uppercase text-slate-400" data-lang-key="stat_api_title">API
+                                    安全</p>
+                                <p class="text-sm font-bold" data-lang-key="stat_api_desc">Casdoor SSO 保护</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features -->
+    <section id="features" class="py-24 px-6 bg-slate-50 dark:bg-slate-900/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-left md:text-center mb-20">
+                <h2 class="text-3xl md:text-5xl font-bold mb-6" data-lang-key="feat_title">不仅仅是图床</h2>
+                <p class="text-slate-500 max-w-2xl md:mx-auto" data-lang-key="feat_subtitle">PicKoala
+                    重新定义了文件托管。从智能压缩到自动化
+                    CDN 刷新，每一个功能都为您节省时间。</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="group p-8 rounded-3xl glass hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-500 border-none shadow-lg hover:shadow-2xl hover:-translate-y-2"
+                    data-aos="fade-up">
+                    <div
+                        class="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-primary text-2xl mb-6 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4" data-lang-key="f1_t">极致分发</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed" data-lang-key="f1_d">
+                        内置多节点 CDN 策略与 Cloudflare API 自动同步。删除即失效，更新即同步，图片全球秒开。
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="group p-8 rounded-3xl glass hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-500 border-none shadow-lg hover:shadow-2xl hover:-translate-y-2"
+                    data-aos="fade-up" data-aos-delay="100">
+                    <div
+                        class="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-secondary text-2xl mb-6 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-fingerprint"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4" data-lang-key="f2_t">企业级身份鉴权</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed" data-lang-key="f2_d">
+                        完美集成 Casdoor 统一身份认证。支持社交账号登录与证书校验，为您的资源筑起安全高墙。
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="group p-8 rounded-3xl glass hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-500 border-none shadow-lg hover:shadow-2xl hover:-translate-y-2"
+                    data-aos="fade-up" data-aos-delay="200">
+                    <div
+                        class="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-accent text-2xl mb-6 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4" data-lang-key="f3_t">全能存储</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed" data-lang-key="f3_d">
+                        不只是图片。视频、文档存档一站式管理。支持分片上传、智能分类与精美的相册/文件夹列表。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security Focus -->
+    <section id="security" class="py-24 px-6 overflow-hidden">
+        <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+            <div class="flex-1" data-aos="fade-right">
+                <div
+                    class="inline-flex items-center gap-2 py-1 px-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-secondary text-xs font-bold mb-6">
+                    <i class="fas fa-shield-alt"></i>
+                    <span data-lang-key="sec_badge">隐私与合规</span>
+                </div>
+                <h2 class="text-4xl font-extrabold mb-6 leading-tight" data-lang-key="sec_title">您的数据安全，<br />我们从未妥协
+                </h2>
+                <p class="text-slate-500 dark:text-slate-400 text-lg mb-8 leading-relaxed" data-lang-key="sec_desc">
+                    PicKoala 提供多维度的内容审计功能，支持阿里云、腾讯云内容安全 API。不仅保护您的资源，也确保整个平台的合规运营。
+                </p>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px]">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <span class="font-medium" data-lang-key="sec_p1">独立数据库加密存储密钥</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px]">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <span class="font-medium" data-lang-key="sec_p2">智能内容审计，自动屏蔽违规资源</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px]">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <span class="font-medium" data-lang-key="sec_p3">SSL/TLS 全程加密连接</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 relative" data-aos="fade-left">
+                <div class="glass p-10 rounded-[3rem] text-center shadow-3xl">
+                    <div class="text-6xl mb-6"><i class="fas fa-lock gradient-text"></i></div>
+                    <div class="text-2xl font-bold mb-2">Casdoor SDK</div>
+                    <p class="text-slate-400 mb-8" data-lang-key="sec_card">多组织管理与权限生命周期控制</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-xs uppercase"
+                            data-lang-key="sec_c1">OAuth 2.0</div>
+                        <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-xs uppercase"
+                            data-lang-key="sec_c2">SAML</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Open Source Section -->
+    <section id="opensource" class="py-24 px-6 relative overflow-hidden">
+        <div class="blob top-[50%] left-[-20%] opacity-50"></div>
+        <div class="max-w-7xl mx-auto">
+            <div class="glass p-12 md:p-20 rounded-[4rem] border-primary/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 relative overflow-hidden"
+                data-aos="fade-up">
+                <div class="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
+                    <i class="fab fa-github text-[120px]"></i>
+                </div>
+
+                <div class="max-w-3xl relative z-10">
+                    <div
+                        class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-primary/10 text-primary text-sm font-bold mb-8">
+                        <i class="fas fa-heart"></i>
+                        <span data-lang-key="os_badge">拥抱开源精神</span>
+                    </div>
+                    <h2 class="text-4xl md:text-5xl font-extrabold mb-8 leading-tight" data-lang-key="os_title">
+                        代码全透明，<br>社区共同驱动</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-lg md:text-xl mb-12 leading-relaxed"
+                        data-lang-key="os_desc">
+                        PicKoala 坚持开源开放，我们的每一行核心代码都托管在 GitHub。我们相信透明的力量，欢迎全球开发者参与贡献，共同打造更强大的考拉云图。
+                    </p>
+                    <div class="flex flex-wrap gap-6 items-center">
+                        <a href="https://github.com/Bitkoala/pickoala" target="_blank"
+                            class="inline-flex items-center gap-3 px-8 py-4 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-2xl font-bold text-lg hover:shadow-2xl transition-all hover:-translate-y-1">
+                            <i class="fab fa-github"></i>
+                            <span data-lang-key="view_github">查看 GitHub 仓库</span>
+                        </a>
+                        <div class="flex items-center gap-4 text-slate-400">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-star text-amber-400"></i>
+                                <span class="font-bold">MIT License</span>
+                            </div>
+                            <div class="w-1 h-1 rounded-full bg-slate-300"></div>
+                            <span data-lang-key="os_community">100% 社区驱动</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing / VIP UI Preview -->
+    <section id="pricing" class="py-24 px-6 bg-slate-900 text-white rounded-[3rem] mx-6">
+        <div class="max-w-7xl mx-auto text-center">
+            <h2 class="text-4xl md:text-5xl font-extrabold mb-16" data-lang-key="pri_title">解锁更多限制</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="p-10 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                    data-aos="fade-up">
+                    <div class="text-sm font-bold opacity-50 mb-4 uppercase tracking-widest" data-lang-key="p1_n">游客
+                    </div>
+                    <div class="text-5xl font-extrabold mb-6" data-lang-key="p1_p">FREE</div>
+                    <ul class="text-left space-y-4 mb-8 opacity-70">
+                        <li><i class="fas fa-check-circle mr-2 opacity-50"></i> 5MB 单图片限制</li>
+                        <li><i class="fas fa-check-circle mr-2 opacity-50"></i> 临时文件存储</li>
+                        <li><i class="fas fa-times-circle mr-2 opacity-30 text-red-400"></i> 无相册管理功能</li>
+                    </ul>
+                </div>
+
+                <div class="p-10 rounded-3xl bg-primary shadow-2xl shadow-primary/40 relative scale-105"
+                    data-aos="fade-up" data-aos-delay="100">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-white text-primary text-xs font-bold rounded-full"
+                        data-lang-key="popular">最受欢迎</div>
+                    <div class="text-sm font-bold opacity-80 mb-4 uppercase tracking-widest" data-lang-key="p2_n">注册会员
+                    </div>
+                    <div class="text-5xl font-extrabold mb-6" data-lang-key="p2_p">BASIC</div>
+                    <ul class="text-left space-y-4 mb-8">
+                        <li><i class="fas fa-check-circle mr-2"></i> 20MB 单图片限制</li>
+                        <li><i class="fas fa-check-circle mr-2"></i> 相册与文件夹管理</li>
+                        <li><i class="fas fa-check-circle mr-2"></i> 上传频率优化</li>
+                    </ul>
+                    <a href="https://pickoala.com/"
+                        class="block w-full py-3 bg-slate-900 rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                        data-lang-key="p2_cta">立即注册</a>
+                </div>
+
+                <div class="p-10 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                    data-aos="fade-up" data-aos-delay="200">
+                    <div
+                        class="flex items-center justify-center gap-2 text-sm font-bold opacity-50 mb-4 uppercase tracking-widest">
+                        <i class="fas fa-crown text-accent"></i>
+                        <span data-lang-key="p3_n">尊贵 VIP</span>
+                    </div>
+                    <div class="text-5xl font-extrabold mb-6" data-lang-key="p3_p">PREMIUM</div>
+                    <ul class="text-left space-y-4 mb-8 opacity-70">
+                        <li><i class="fas fa-check-circle mr-2 opacity-50"></i> 100MB+ 单图片/视频</li>
+                        <li><i class="fas fa-check-circle mr-2 opacity-50"></i> 全局 CDN 优先加速</li>
+                        <li><i class="fas fa-check-circle mr-2 opacity-50"></i> 尽享永久保存计划</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="py-32 px-6 text-center">
+        <div data-aos="fade-up">
+            <h2 class="text-4xl md:text-6xl font-extrabold mb-8" data-lang-key="last_t">将您的分享体验<br />提升到一个新水平</h2>
+            <p class="text-slate-500 mb-12" data-lang-key="last_d">现在加入 PicKoala，感受从未有过的云端分发效率。</p>
+            <a href="https://pickoala.com/"
+                class="inline-flex items-center gap-3 px-12 py-5 bg-primary text-white text-xl font-bold rounded-[2rem] hover:shadow-2xl hover:shadow-primary/50 transition-all hover:-translate-y-2 active:scale-95">
+                <span data-lang-key="last_cta">立即开启高速上传</span>
+                <i class="fas fa-chevron-right text-sm"></i>
+            </a>
+        </div>
+    </section>
+
+    <footer class="py-12 px-6 border-t border-slate-200 dark:border-white/10">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+            <div class="flex items-center gap-2 opacity-80">
+                <img id="footerLogo" src="https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp" alt="PicKoala Logo"
+                    class="h-6 w-auto">
+                <div class="flex items-baseline gap-1">
+                    <span class="font-bold">考拉云图</span>
+                    <span
+                        class="px-1 py-0.2 rounded bg-primary/10 text-primary text-[8px] font-bold uppercase border border-primary/20">PicKoala</span>
+                </div>
+            </div>
+
+            <div class="text-slate-400 text-sm flex flex-col md:items-start gap-1">
+                <div class="flex gap-4 mb-1">
+                    <a href="privacy.html" class="hover:text-primary transition-colors"
+                        data-lang-key="nav_privacy">隐私政策</a>
+                    <a href="terms.html" class="hover:text-primary transition-colors" data-lang-key="nav_terms">服务条款</a>
+                </div>
+                <div>&copy; 2024-2026 PicKoala Pro. All rights reserved.</div>
+            </div>
+
+            <div class="flex gap-6">
+                <a href="https://github.com/Bitkoala/pickoala" target="_blank"
+                    class="text-slate-400 hover:text-primary transition-colors"><i class="fab fa-github"></i></a>
+
+                <!-- WeChat with Popover -->
+                <div class="relative group">
+                    <button class="text-slate-400 hover:text-emerald-500 transition-colors focus:outline-none">
+                        <i class="fab fa-weixin"></i>
+                    </button>
+                    <!-- Popover -->
+                    <div
+                        class="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto transition-all duration-300 z-50">
+                        <div class="glass p-3 rounded-2xl shadow-2xl border-slate-200 dark:border-white/10 w-48">
+                            <img src="https://pickoala.com/img/images/2026/01/05/RM45hGH4.webp" alt="WeChat QR Code"
+                                class="w-full h-auto rounded-xl shadow-lg">
+                            <p class="text-center text-[10px] font-bold mt-2 text-slate-500 dark:text-slate-400 uppercase tracking-widest"
+                                data-lang-key="wechat_hint">扫码关注我们</p>
+                        </div>
+                        <!-- Arrow -->
+                        <div
+                            class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-8 border-transparent border-t-white dark:border-t-slate-900 opacity-80">
+                        </div>
+                    </div>
+                </div>
+
+                <a href="https://discord.gg/QbdktDgGm8" target="_blank"
+                    class="text-slate-400 hover:text-primary transition-colors"><i class="fab fa-discord"></i></a>
+                <a href="https://t.me/BitekaolaTeam" target="_blank"
+                    class="text-slate-400 hover:text-sky-500 transition-colors"><i class="fab fa-telegram"></i></a>
+                <a href="https://x.com/Bitekaola" target="_blank"
+                    class="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><i
+                        class="fab fa-x-twitter"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        AOS.init({ duration: 1000, once: true });
+
+        // Swiper Initialization
+        const swiper = new Swiper(".mySwiper", {
+            loop: true,
+            speed: 800,
+            autoplay: {
+                delay: 4000,
+                disableOnInteraction: false,
+            },
+            pagination: {
+                el: ".swiper-pagination",
+                clickable: true,
+                dynamicBullets: true,
+            },
+            navigation: {
+                nextEl: ".swiper-button-next",
+                prevEl: ".swiper-button-prev",
+            },
+            effect: "coverflow",
+            coverflowEffect: {
+                rotate: 0,
+                stretch: 0,
+                depth: 100,
+                modifier: 1,
+                slideShadows: false,
+            },
+        });
+
+        // Multi-language implementation
+        const translations = {
+            'zh': {
+                'title': 'PicKoala - 简洁优雅的现代化全功能图床',
+                'nav_features': '功能', 'nav_pricing': '资费', 'nav_security': '安全', 'nav_launch': '进入应用',
+                'nav_opensource': '开源', 'nav_privacy': '隐私政策', 'nav_terms': '服务条款',
+                'badge': 'All-in-One 图床解决方案',
+                'hero_t1': '简单、快速且', 'hero_t2': '极其强大',
+                'hero_desc': 'PicKoala 是为您量身定制的现代化托管平台。支持图片、视频、文件的高效存储与分发，专为追求极致体验的创作者打造。',
+                'cta_main': '立即开始上传', 'cta_sub': '了解更多功能',
+                'feat_title': '不仅仅是图床', 'feat_subtitle': 'PicKoala 重新定义了文件托管。从智能压缩到自动化 CDN 刷新，每一个功能都为您节省时间。',
+                'f1_t': '极致分发', 'f1_d': '内置多节点 CDN 策略与 Cloudflare API 自动同步。删除即失效，更新即同步，图片全球秒开。',
+                'f2_t': '企业级身份鉴权', 'f2_d': '完美集成 Casdoor 统一身份认证。支持社交账号登录与证书校验，为您的资源筑起安全高墙。',
+                'f3_t': '全能存储', 'f3_d': '不只是图片。视频、文档存档一站式管理。支持分片上传、智能分类与精美的相册/文件夹列表。',
+                'sec_badge': '隐私与合规', 'sec_title': '您的数据安全，我们从未妥协',
+                'sec_desc': 'PicKoala 提供多维度的内容审计功能，支持阿里云、腾讯云内容安全 API。不仅保护您的资源，也确保整个平台的合规运营。',
+                'sec_p1': '独立数据库加密存储密钥', 'sec_p2': '智能内容审计，自动屏蔽违规资源', 'sec_p3': 'SSL/TLS 全程加密连接',
+                'sec_card': '多组织管理与权限生命周期控制', 'sec_c1': 'OAuth 2.0', 'sec_c2': 'OIDC / SAML',
+                'stat_cdn_title': 'CDN 状态', 'stat_cdn_desc': '全球加速已就绪',
+                'stat_api_title': 'API 安全', 'stat_api_desc': 'Casdoor SSO 保护',
+                'os_badge': '拥抱开源精神', 'os_title': '代码全透明，社区共同驱动',
+                'os_desc': 'PicKoala 坚持开源开放，我们的每一行核心代码都托管在 GitHub。我们相信透明的力量，欢迎全球开发者参与贡献，共同打造更强大的考拉云图。',
+                'view_github': '查看 GitHub 仓库', 'os_community': '100% 社区驱动',
+                'wechat_hint': '扫码联系我们',
+                'pri_title': '解锁更多限制', 'popular': '最受欢迎',
+                'p1_n': '游客', 'p1_p': 'FREE', 'p2_n': '注册会员', 'p2_p': 'BASIC', 'p3_n': '尊贵 VIP', 'p3_p': 'PREMIUM',
+                'p2_cta': '立即注册', 'last_t': '将您的分享体验提升到一个新水平',
+                'last_d': '现在加入 PicKoala，感受从未有过的云端分发效率。', 'last_cta': '立即开启高速上传'
+            },
+            'en': {
+                'title': 'PicKoala - Elegant Modern Image Hosting',
+                'nav_features': 'Features', 'nav_pricing': 'Pricing', 'nav_security': 'Security', 'nav_launch': 'Launch App',
+                'nav_opensource': 'Open Source', 'nav_privacy': 'Privacy Policy', 'nav_terms': 'Terms of Service',
+                'badge': 'All-in-One Distribution Solution',
+                'hero_t1': 'Simple, Fast, and', 'hero_t2': 'Incredibly Powerful',
+                'hero_desc': 'PicKoala is a modern hosting platform tailored for you. High-efficiency storage and distribution of images, videos, and files for creators who demand excellence.',
+                'cta_main': 'Start Uploading Now', 'cta_sub': 'Discover Features',
+                'feat_title': 'Beyond Just Image Hosting', 'feat_subtitle': 'PicKoala redefines file hosting with smart compression and automated CDN refreshing to save your time.',
+                'f1_t': 'Ultimate Distribution', 'f1_d': 'Built-in multi-node CDN with Cloudflare API sync. Purges on delete and syncs on update for millisecond global access.',
+                'f2_t': 'Enterprise-grade Auth', 'f2_d': 'Seamless Casdoor SSO integration. Supports social logins and certificate validation for ultimate resource protection.',
+                'f3_t': 'Omni-Storage', 'f3_d': 'Not just images. Manage videos and archives in one place with chunked uploads, smart sorting, and beautiful albums.',
+                'sec_badge': 'Privacy & Compliance', 'sec_title': 'Never Compromising on Your Data Safety',
+                'sec_desc': 'PicKoala provides multi-dimensional content auditing via Aliyun and Tencent Cloud APIs, ensuring both resource safety and compliance.',
+                'sec_p1': 'Separately Encrypted Database Shared Keys', 'sec_p2': 'AI Auditing to block illicit content automatically', 'sec_p3': 'Full SSL/TLS encrypted connections',
+                'sec_card': 'Multi-org Management and Policy Control', 'sec_c1': 'OAuth 2.0', 'sec_c2': 'OIDC / SAML',
+                'stat_cdn_title': 'CDN STATUS', 'stat_cdn_desc': 'Global Acceleration Ready',
+                'stat_api_title': 'API SECURITY', 'stat_api_desc': 'Casdoor SSO Protected',
+                'os_badge': 'Embracing Open Source', 'os_title': 'Transparent Code, Community Driven',
+                'os_desc': 'Every line of our core code is hosted on GitHub. We believe in the power of transparency and welcome global contributions to make PicKoala stronger.',
+                'view_github': 'View GitHub Repo', 'os_community': '100% Community Driven',
+                'wechat_hint': 'Scan to contact us',
+                'pri_title': 'Unlock Full Potential', 'popular': 'Most Popular',
+                'p1_n': 'Guest', 'p1_p': 'FREE', 'p2_n': 'Member', 'p2_p': 'BASIC', 'p3_n': 'Exclusive VIP', 'p3_p': 'PREMIUM',
+                'p2_cta': 'Register Now', 'last_t': 'Take Your Experience to The Next Level',
+                'last_d': 'Join PicKoala today and feel the efficiency of cloud distribution like never before.', 'last_cta': 'Launch High-Speed Uploads'
+            }
+        };
+
+        let currentLang = 'zh';
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('langLabel').textContent = currentLang === 'zh' ? 'EN' : '中';
+            updateContent();
+        }
+
+        function updateContent() {
+            const keys = translations[currentLang];
+            document.querySelectorAll('[data-lang-key]').forEach(el => {
+                const key = el.getAttribute('data-lang-key');
+                if (keys[key]) el.textContent = keys[key];
+            });
+            document.title = keys['title'];
+        }
+
+        // Theme management
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.getElementById('themeIcon').className = isDark ? 'fas fa-sun text-slate-500' : 'fas fa-moon text-slate-500';
+            localStorage.setItem('landing-theme', isDark ? 'dark' : 'light');
+            updateLogos(isDark);
+        }
+
+        function updateLogos(isDark) {
+            const lightLogo = 'https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp';
+            const darkLogo = 'https://pickoala.com/img/images/2026/01/05/lw9l11s4.webp';
+            const logoUrl = isDark ? darkLogo : lightLogo;
+            document.getElementById('navLogo').src = logoUrl;
+            if (document.getElementById('footerLogo')) document.getElementById('footerLogo').src = logoUrl;
+        }
+
+        // Initialize
+        const savedTheme = localStorage.getItem('landing-theme');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDarkInitial = savedTheme === 'dark' || (!savedTheme && systemDark);
+
+        if (isDarkInitial) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('themeIcon').className = 'fas fa-sun text-slate-500';
+            updateLogos(true);
+        } else {
+            updateLogos(false);
+        }
+    </script>
+</body>
+
+</html>

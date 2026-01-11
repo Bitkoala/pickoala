@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-lang-key="title">隐私权政策 - PicKoala</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 2rem;
+            padding: 3rem;
+            box-shadow: 0 10px 50px -12px rgba(0, 0, 0, 0.05);
+        }
+
+        .dark .content-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .prose p {
+            margin-bottom: 1.25rem;
+            line-height: 1.8;
+            color: #64748b;
+        }
+
+        .dark .prose p {
+            color: #94a3b8;
+        }
+
+        .nav-link {
+            position: relative;
+            font-weight: 500;
+            color: #64748b;
+            transition: color 0.3s;
+        }
+
+        .dark .nav-link {
+            color: #94a3b8;
+        }
+
+        .nav-link:hover {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 px-6 py-4">
+        <div
+            class="max-w-7xl mx-auto flex items-center justify-between glass rounded-2xl px-6 py-3 shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <a href="landing.html" class="flex items-center gap-2">
+                <img id="navLogo" src="https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp" alt="PicKoala Logo"
+                    class="h-10 w-auto">
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-xl font-bold tracking-tight">考拉云图</span>
+                    <span
+                        class="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-extrabold border border-primary/20">PicKoala</span>
+                </div>
+            </a>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleLang()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i class="fas fa-globe text-slate-500"></i>
+                    <span id="langLabel" class="ml-1 text-xs font-bold">EN</span>
+                </button>
+                <button onclick="toggleTheme()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i id="themeIcon" class="fas fa-moon text-slate-500"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="pt-32 pb-20 px-6">
+        <div class="max-w-4xl mx-auto" data-aos="fade-up">
+            <header class="text-center mb-16">
+                <h1 class="text-4xl md:text-5xl font-extrabold mb-4 gradient-text" data-lang-key="h1">隐私权政策</h1>
+                <p class="text-slate-500" data-lang-key="modified">最近更新日期：2026年1月10日</p>
+            </header>
+
+            <div class="content-card prose dark:prose-invert">
+                <div id="content_zh">
+                    <h2>1. 我们的承诺</h2>
+                    <p>PicKoala（“我们”）深知您的隐私对您而言至关重要。本隐私政策旨在解释我们如何收集、使用、披露和保护您的个人信息，以便您能够放心地使用我们的图床及文件托管服务。</p>
+
+                    <h2>2. 信息收集</h2>
+                    <p>当您使用我们的服务时，我们可能会收集以下类型的信息：</p>
+                    <ul>
+                        <li><strong>账户信息：</strong>通过 Casdoor 登录时提供的用户名、电子邮箱及头像。</li>
+                        <li><strong>内容数据：</strong>您上传的图片、视频、文件及其相关的元数据（如文件名、尺寸等）。</li>
+                        <li><strong>访问数据：</strong>您的 IP 地址、浏览器类型、操作平台及访问路径，用于系统安全维护。</li>
+                    </ul>
+
+                    <h2>3. 信息使用</h2>
+                    <p>我们收集的信息主要用于以下目的：</p>
+                    <ul>
+                        <li>提供及维护托管分发服务；</li>
+                        <li>进行内容安全审计（通过外部安全 API）；</li>
+                        <li>改进用户体验及推送 VIP 专属功能；</li>
+                        <li>防止欺诈或滥用行为。</li>
+                    </ul>
+
+                    <h2>4. 数据保护与安全</h2>
+                    <p>我们采用行业领先的安全技术（如 SSL 全程加密、独立数据库隔离）来防止您的数据遭到未经授权的访问或泄露。请注意，虽然我们尽力保护，但互联网上的传输并非绝对安全。</p>
+
+                    <h2>5. 第三方服务</h2>
+                    <p>为了提供极致的访问速度和安全性，我们使用了 Cloudflare CDN 及云厂商的安全检测 API。这些服务在处理数据时将遵循其各自的隐私政策。</p>
+
+                    <h2>6. 您的权利</h2>
+                    <p>您有权随时登录您的个人账户查看、编辑或删除您上传的内容。若您选择注销账户，我们将根据相关法律规定处理您的个人信息。</p>
+                </div>
+
+                <div id="content_en" class="hidden">
+                    <h2>1. Our Commitment</h2>
+                    <p>PicKoala ("we", "us", or "our") understands that your privacy is crucial. This Privacy Policy
+                        explains how we collect, use, disclose, and protect your personal information.</p>
+
+                    <h2>2. Information Collection</h2>
+                    <p>We may collect the following types of information:</p>
+                    <ul>
+                        <li><strong>Account Info:</strong> Username, email, and avatar provided via Casdoor SSO.</li>
+                        <li><strong>Content Data:</strong> Images, videos, files you upload and their metadata
+                            (filenames, dimensions, etc.).</li>
+                        <li><strong>Log Data:</strong> Your IP address, browser type, OS, and access patterns for
+                            security maintenance.</li>
+                    </ul>
+
+                    <h2>3. Usage of Information</h2>
+                    <p>The collected information is used to:</p>
+                    <ul>
+                        <li>Provide and maintain hosting/distribution services;</li>
+                        <li>Perform content auditing (via external security APIs);</li>
+                        <li>Improve user experience and offer VIP features;</li>
+                        <li>Prevent fraud or abuse.</li>
+                    </ul>
+
+                    <h2>4. Data Protection</h2>
+                    <p>We use industry-leading security technologies (SSL encryption, database isolation) to prevent
+                        unauthorized access. Note that no method of transmission over the internet is 100% secure.</p>
+
+                    <h2>5. Third-Party Services</h2>
+                    <p>We utilize Cloudflare CDN and cloud security APIs. These services handle data according to their
+                        own privacy policies.</p>
+
+                    <h2>6. Your Rights</h2>
+                    <p>You have the right to view, edit, or delete your content at any time. Account deletion will be
+                        handled according to applicable legal requirements.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-12 px-6 border-t border-slate-200 dark:border-white/10 text-center text-slate-400 text-sm">
+        <div class="mb-4">
+            <a href="landing.html" class="hover:text-primary mx-2">返回主页</a> |
+            <a href="terms.html" class="hover:text-primary mx-2">服务条款</a>
+        </div>
+        &copy; 2024-2026 PicKoala Pro. All rights reserved.
+    </footer>
+
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script>
+        AOS.init({ duration: 1000, once: true });
+
+        let currentLang = 'zh';
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('langLabel').textContent = currentLang === 'zh' ? 'EN' : '中';
+            document.title = currentLang === 'zh' ? '隐私权政策 - PicKoala' : 'Privacy Policy - PicKoala';
+            document.querySelector('[data-lang-key="h1"]').textContent = currentLang === 'zh' ? '隐私权政策' : 'Privacy Policy';
+            document.querySelector('[data-lang-key="modified"]').textContent = currentLang === 'zh' ? '最近更新日期：2026年1月10日' : 'Last Updated: Jan 10, 2026';
+
+            document.getElementById('content_zh').classList.toggle('hidden', currentLang === 'en');
+            document.getElementById('content_en').classList.toggle('hidden', currentLang === 'zh');
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.getElementById('themeIcon').className = isDark ? 'fas fa-sun text-slate-500' : 'fas fa-moon text-slate-500';
+            localStorage.setItem('landing-theme', isDark ? 'dark' : 'light');
+            updateLogos(isDark);
+        }
+
+        function updateLogos(isDark) {
+            const lightLogo = 'https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp';
+            const darkLogo = 'https://pickoala.com/img/images/2026/01/05/lw9l11s4.webp';
+            const logoUrl = isDark ? darkLogo : lightLogo;
+            document.getElementById('navLogo').src = logoUrl;
+        }
+
+        const savedTheme = localStorage.getItem('landing-theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('themeIcon').className = 'fas fa-sun text-slate-500';
+            updateLogos(true);
+        } else {
+            updateLogos(false);
+        }
+    </script>
+</body>
+
+</html>

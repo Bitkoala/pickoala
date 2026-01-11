@@ -1,45 +1,46 @@
 services:
   backend:
-    build:
-      # 使用相对路径，兼容所有面板
-      context: ./backend
-      dockerfile: Dockerfile
+    # 建议手动编译: docker build -t pickoala-app .
+    # 使用镜像名称可避免宝塔 UI 出现 YAML 解析错误
+    build: ./backend
+    image: pickoala-app
     container_name: pickoala-backend
     restart: always
     ports:
       - "8000:8000"
     volumes:
-      # 挂载上传目录到宿主机，防止数据丢失！
-      # 宿主机目录 : 容器内目录
+      # 挂载上传目录和后端源码
       - ./uploads:/app/uploads
       - ./backend:/app
     environment:
-      # 1Panel 兼容格式 (Mapping)
-      DATABASE_URL: "mysql+aiomysql://root:password@mysql:3306/pickoala?charset=utf8mb4"
-      REDIS_URL: "redis://redis:6379/0"
+      # 连接宿主机数据库使用 172.17.0.1 (Docker Bridge IP)
+      DATABASE_URL: "mysql+aiomysql://pickoala:HrsGmM7e5nRh5Kkc@172.17.0.1:3306/pickoala?charset=utf8mb4"
+      REDIS_URL: "redis://pickoala-redis:6379/0"
       REDIS_ENABLED: "true"
-      APP_SECRET_KEY: "change_this_secret_key"
+      APP_SECRET_KEY: "HrsGmM7e5nRh5Kkc_PROD_KEY_V2"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     depends_on:
-      - mysql
       - redis
     networks:
       - pickoala-net
 
-  mysql:
-    image: mysql:8.0
-    container_name: pickoala-mysql
-    restart: always
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    environment:
-      MYSQL_ROOT_PASSWORD: "password"
-      MYSQL_DATABASE: "pickoala"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      # 使用相对路径挂载初始化脚本
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - pickoala-net
+  # mysql:  <-- 已注释：使用外部公共数据库
+  #   image: mysql:8.0
+  #   container_name: pickoala-mysql
+  #   restart: always
+  #   command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: "password"
+  #     MYSQL_DATABASE: "pickoala"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #     # 使用相对路径挂载初始化脚本
+  #     - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   networks:
+  #     - pickoala-net
 
   redis:
     image: redis:6-alpine
@@ -51,8 +52,3 @@ services:
 networks:
   pickoala-net:
     driver: bridge
-
-volumes:
-  mysql_data:
-
-

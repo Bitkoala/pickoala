@@ -49,6 +49,11 @@ class Image(Base):
     
     # Stats
     view_count = Column(Integer, default=0)
+
+    # AI Analysis
+    ai_tags = Column(String(1000), nullable=True)  # JSON-encoded list of tags
+    ai_description = Column(String(1000), nullable=True)  # AI generated description
+    ai_analysis_status = Column(String(20), nullable=True)  # pending, processing, completed, failed
     
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())
@@ -68,17 +73,18 @@ class Image(Base):
         """
         Get the public URL for this image.
         
-        For cloud storage: returns storage_url (full cloud URL)
+        For cloud storage: returns storage_url (full cloud URL) if present.
+        If storage_url is missing but it's cloud storage, it goes through backend proxy.
         For local storage: returns /uploads/{file_path}
-        
-        file_path may be:
-        - Legacy flat format: "abc123.png"
-        - New date-based format: "2025/12/14/abc123.png"
         """
         if self.storage_url:
             return self.storage_url
-        # Use file_path which includes date folder structure for new uploads
-        # or just filename for legacy uploads
+            
+        # Cloud storage proxy fallback (if storage_url is NULL)
+        if self.storage_type != "local":
+            return f"/img/images/{self.file_path}"
+            
+        # Local storage fallback
         return f"/uploads/{self.file_path}"
 
     def __repr__(self):

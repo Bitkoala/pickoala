@@ -1,3 +1,4 @@
+import logging
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from pydantic import BaseModel
@@ -16,9 +17,13 @@ from app.services.settings import (
     get_alipay_app_id,
     get_alipay_private_key,
     get_alipay_public_key,
-    get_vip_plans
+    get_vip_plans,
+    get_setting,
+    get_setting_bool
 )
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -251,11 +256,19 @@ async def alipay_pay(
     try:
         client = await get_alipay_client()
         
-        # Create order
+        # Create order with page_pay for browser redirection (Automatic PC/Mobile)
+        # Note: Alipay will handle device detection and show WAP or Page automatically 
+        # iff using the latest SDK and corresponding API
+        site_url = await get_site_url()
+        return_url = f"{site_url}/vip/success"
+
+        # Use api_alipay_trade_precreate for "Face-to-Face" (当面付)
+        formatted_amount = "{:.2f}".format(amount)
+        
         result = client.api_alipay_trade_precreate(
             subject=subject,
             out_trade_no=out_trade_no,
-            total_amount=amount
+            total_amount=formatted_amount
         )
         
         if result.get("code") != "10000":
@@ -263,7 +276,7 @@ async def alipay_pay(
              raise HTTPException(status_code=400, detail=f"Alipay Error: {msg}")
              
         qr_code_url = result.get("qr_code")
-        
+
         # Create Transaction
         transaction = PaymentTransaction(
             user_id=current_user.id,
@@ -343,12 +356,124 @@ async def check_alipay_status(
              return {"status": "paid"}
              
     except Exception as e:
-        print(f"Alipay Query Error: {e}")
+        logger.error(f"Alipay Query Error: {e}")
         
     return {"status": "pending"}
 
-async def handle_alipay_success(out_trade_no: str, db: AsyncSession):
-    """Common logic to mark as paid and grant VIP."""
+# ==========================================
+# Epay (易支付) Integration
+# ==========================================
+
+async def get_epay_config():
+    """Get Epay configuration from settings."""
+    return {
+        "api_url": await get_setting("payment_epay_api_url"),
+        "partner_id": await get_setting("payment_epay_partner_id"),
+        "partner_key": await get_setting("payment_epay_partner_key"),
+    }
+
+def generate_epay_sign(params: dict, partner_key: str) -> str:
+    """Generate MD5 signature for Epay."""
+    import hashlib
+    # Filter out empty, sign and sign_type
+    filtered_params = {k: v for k, v in params.items() if v and k not in ["sign", "sign_type"]}
+    # Sort keys alphabetically
+    sorted_keys = sorted(filtered_params.keys())
+    # Join into a query string
+    query_string = "&".join([f"{k}={filtered_params[k]}" for k in sorted_keys])
+    # Append partner key
+    sign_str = query_string + partner_key
+    # Calculate MD5
+    return hashlib.md5(sign_str.encode("utf-8")).hexdigest()
+
+@router.post("/epay/pay")
+async def epay_pay(
+    request: CheckoutRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate Epay payment URL for VIP upgrade."""
+    
+    if not await get_setting_bool("payment_epay_enabled", False):
+        raise HTTPException(status_code=400, detail="Epay payments are disabled.")
+    
+    vip_plans = await get_vip_plans()
+    selected_plan = vip_plans.get(request.plan)
+    if not selected_plan or not selected_plan["enabled"]:
+        raise HTTPException(status_code=400, detail="Invalid or disabled plan selected.")
+    
+    config = await get_epay_config()
+    if not config["api_url"] or not config["partner_id"] or not config["partner_key"]:
+        raise HTTPException(status_code=500, detail="Epay configuration missing.")
+    
+    out_trade_no = f"VIP_EPAY_{request.plan}_{current_user.id}_{int(datetime.utcnow().timestamp())}"
+    site_url = await get_site_url()
+    
+    # Standard Epay Parameters
+    params = {
+        "pid": config["partner_id"],
+        "type": "alipay", # Default to alipay, can be extended to wxpay/qqpay
+        "out_trade_no": out_trade_no,
+        "notify_url": f"{site_url}/api/payments/epay/notify",
+        "return_url": f"{site_url}/vip/success",
+        "name": f"VIP Membership ({request.plan})",
+        "money": selected_plan["price"],
+        "sitename": "PicKoala"
+    }
+    
+    params["sign"] = generate_epay_sign(params, config["partner_key"])
+    params["sign_type"] = "MD5"
+    
+    # Construct the final payment URL for redirection
+    import urllib.parse
+    query_string = urllib.parse.urlencode(params)
+    pay_url = f"{config['api_url']}?{query_string}"
+    
+    # Create Transaction
+    transaction = PaymentTransaction(
+        user_id=current_user.id,
+        provider="epay",
+        out_trade_no=out_trade_no,
+        amount=int(float(selected_plan["price"]) * 100),
+        currency="cny",
+        status=PaymentStatus.PENDING
+    )
+    db.add(transaction)
+    await db.commit()
+    
+    return {"url": pay_url}
+
+@router.get("/epay/notify")
+@router.post("/epay/notify")
+async def epay_notify(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle Epay asynchronous notification."""
+    # Epay usually sends via GET/POST
+    if request.method == "POST":
+        data = await request.form()
+    else:
+        data = request.query_params
+    
+    data_dict = dict(data)
+    config = await get_epay_config()
+    
+    signature = data_dict.get("sign")
+    if not signature:
+        return "fail"
+    
+    expected_sign = generate_epay_sign(data_dict, config["partner_key"])
+    if signature != expected_sign:
+        logger.warning(f"Epay Signature mismatch. Received: {signature}, Expected: {expected_sign}")
+        return "fail"
+    
+    if data_dict.get("trade_status") == "TRADE_SUCCESS":
+        out_trade_no = data_dict.get("out_trade_no")
+        await handle_epay_success(out_trade_no, db)
+        return "success"
+    
+    return "fail"
+
+async def handle_epay_success(out_trade_no: str, db: AsyncSession):
+    """Process a successful Epay payment."""
     result = await db.execute(select(PaymentTransaction).where(PaymentTransaction.out_trade_no == out_trade_no))
     transaction = result.scalars().first()
     
@@ -362,11 +487,12 @@ async def handle_alipay_success(out_trade_no: str, db: AsyncSession):
         if user:
             now = datetime.utcnow()
             current_expire = user.vip_expire_at
-            # Parse plan from out_trade_no: VIP_{plan}_{uid}_{ts}
+            
+            # Format: VIP_EPAY_{plan}_{uid}_{ts}
             parts = out_trade_no.split("_")
             plan = "month"
             if len(parts) >= 4:
-                plan = parts[1]
+                plan = parts[2] # Part 0: VIP, Part 1: EPAY, Part 2: plan
                 
             duration_map = {
                 "month": 30,
@@ -381,6 +507,6 @@ async def handle_alipay_success(out_trade_no: str, db: AsyncSession):
             else:
                 new_expire = now + timedelta(days=days)
             user.vip_expire_at = new_expire
-            print(f"Alipay VIP Granted to User {user.username} (Plan: {plan})")
+            logger.info(f"Epay VIP Granted to User {user.username} (Plan: {plan})")
             
         await db.commit()

@@ -29,7 +29,7 @@ class PaymentTransaction(Base):
     
     amount = Column(Integer, nullable=False)  # Amount in cents (Stripe) or Yuan (Alipay? converting to cents standard)
     currency = Column(String(10), default="cny")
-    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
+    status = Column(Enum(PaymentStatus, values_callable=lambda x: [e.value for e in x]), default=PaymentStatus.PENDING)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

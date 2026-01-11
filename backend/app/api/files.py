@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File as FastAPIFile, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File as FastAPIFile, BackgroundTasks, Form
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
@@ -26,9 +26,9 @@ async def upload_file(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = FastAPIFile(...),
-    password: Optional[str] = None,
-    expire_at: Optional[datetime] = None,
-    download_limit: Optional[int] = None,
+    password: Optional[str] = Form(None),
+    expire_at: Optional[datetime] = Form(None),
+    download_limit: Optional[int] = Form(None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ):
@@ -70,13 +70,12 @@ async def upload_file(
             max_size = await settings_service.get_max_video_upload_size_vip()
         elif user:
             max_size = await settings_service.get_max_video_upload_size_user()
-            if expire_at is None:
-                from datetime import timedelta
-                expire_at = datetime.utcnow() + timedelta(days=30)
         else:
             max_size = await settings_service.get_max_video_upload_size_guest()
-            from datetime import timedelta
-            expire_at = datetime.utcnow() + timedelta(days=1)
+        
+        # 视频默认不设置有效期
+        if expire_at is None:
+            expire_at = None
     else:
         # Generic File Limits
         if is_vip:
@@ -88,8 +87,9 @@ async def upload_file(
                 expire_at = datetime.utcnow() + timedelta(days=30)
         else:
             max_size = await settings_service.get_max_file_upload_size_guest()
-            from datetime import timedelta
-            expire_at = datetime.utcnow() + timedelta(days=1)
+            if expire_at is None:
+                from datetime import timedelta
+                expire_at = datetime.utcnow() + timedelta(days=1)
         
     # Validate extension
     if limit_type == 'video':
@@ -248,7 +248,10 @@ async def get_public_file_info(
     if file_obj.download_limit is not None and file_obj.download_count >= file_obj.download_limit:
         raise HTTPException(status_code=410, detail="Download limit reached")
         
-    return file_obj
+    # Create response
+    response = FilePublicResponse.model_validate(file_obj)
+    response.has_password = bool(file_obj.access_password)
+    return response
 
 @router.put("/{file_id}", response_model=FileResponse)
 async def update_file(
@@ -318,50 +321,71 @@ async def delete_file(
     await db.commit()
     return {"success": True}
 
+import logging
+logger = logging.getLogger(__name__)
+
 @router.get("/d/{code}")
 async def download_file(
     code: str,
+    password: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Download a file (public). Increments download counter."""
     from fastapi.responses import FileResponse, RedirectResponse
-    # Use select for update to lock row for counter increment
-    query = select(FileModel).where(FileModel.unique_code == code)
-    result = await db.execute(query)
-    file_obj = result.scalar_one_or_none()
-    
-    if not file_obj:
-        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        # Use select for update to lock row for counter increment
+        query = select(FileModel).where(FileModel.unique_code == code)
+        result = await db.execute(query)
+        file_obj = result.scalar_one_or_none()
         
-    # Check checks
-    if file_obj.expire_at and file_obj.expire_at < datetime.utcnow():
-        raise HTTPException(status_code=410, detail="File link expired")
-        
-    if file_obj.download_limit is not None and file_obj.download_count >= file_obj.download_limit:
-        raise HTTPException(status_code=410, detail="Download limit reached")
+        if not file_obj:
+            raise HTTPException(status_code=404, detail="File not found")
+            
+        # Check checks
+        if file_obj.expire_at and file_obj.expire_at < datetime.utcnow():
+            raise HTTPException(status_code=410, detail="File link expired")
+            
+        if file_obj.download_limit is not None and file_obj.download_count >= file_obj.download_limit:
+            raise HTTPException(status_code=410, detail="Download limit reached")
 
-    # Increment counter
-    # Note: For high concurrency, this update might need better locking or atomic update
-    # simple increment for now
-    file_obj.download_count += 1
-    await db.commit()
-    
-    # Return file
-    # If using cloud storage, redirect to signed URL
-    if file_obj.storage_type != "local" and file_obj.storage_url:
-        return RedirectResponse(url=file_obj.storage_url)
+        # Check password
+        if file_obj.access_password and file_obj.access_password != password:
+            raise HTTPException(status_code=403, detail="Password required or incorrect")
+
+        # Increment counter
+        # Note: For high concurrency, this update might need better locking or atomic update
+        # simple increment for now
+        file_obj.download_count += 1
+        await db.commit()
         
-    # Local storage
-    # file_path in DB is relative e.g. "files/2025/12/28/abc.pdf"
-    # We need full path
-    settings = settings_service.get_settings()
-    full_path = os.path.join(settings.upload_path, file_obj.file_path)
-    
-    if not os.path.isfile(full_path):
-        raise HTTPException(status_code=404, detail="File missing on disk")
+        # Return file
+        # If using cloud storage, redirect to signed URL
+        if file_obj.storage_type != "local" and file_obj.storage_url:
+            return RedirectResponse(url=file_obj.storage_url)
+            
+        # Local storage
+        # file_path in DB is relative e.g. "files/2025/12/28/abc.pdf"
+        # We need full path
+        from app.config import get_settings
+        settings = get_settings()
+        upload_path = settings.upload_path
         
-    return FileResponse(
-        full_path, 
-        filename=file_obj.original_filename,
-        media_type=file_obj.mime_type
-    )
+        full_path = os.path.join(upload_path, file_obj.file_path)
+        
+        # Debug log
+        logger.info(f"Download Request: Code={code}, Path={full_path}")
+        
+        if not os.path.isfile(full_path):
+            logger.error(f"File missing on disk: {full_path}")
+            raise HTTPException(status_code=404, detail="File missing on disk")
+            
+        return FileResponse(
+            full_path, 
+            filename=file_obj.original_filename,
+            media_type=file_obj.mime_type
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Download Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")

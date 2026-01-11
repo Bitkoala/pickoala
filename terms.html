@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-lang-key="title">服务条款 - PicKoala</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 2rem;
+            padding: 3rem;
+            box-shadow: 0 10px 50px -12px rgba(0, 0, 0, 0.05);
+        }
+
+        .dark .content-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .prose p {
+            margin-bottom: 1.25rem;
+            line-height: 1.8;
+            color: #64748b;
+        }
+
+        .dark .prose p {
+            color: #94a3b8;
+        }
+
+        .nav-link {
+            position: relative;
+            font-weight: 500;
+            color: #64748b;
+            transition: color 0.3s;
+        }
+
+        .dark .nav-link {
+            color: #94a3b8;
+        }
+
+        .nav-link:hover {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 px-6 py-4">
+        <div
+            class="max-w-7xl mx-auto flex items-center justify-between glass rounded-2xl px-6 py-3 shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <a href="landing.html" class="flex items-center gap-2">
+                <img id="navLogo" src="https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp" alt="PicKoala Logo"
+                    class="h-10 w-auto">
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-xl font-bold tracking-tight">考拉云图</span>
+                    <span
+                        class="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-extrabold border border-primary/20">PicKoala</span>
+                </div>
+            </a>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleLang()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i class="fas fa-globe text-slate-500"></i>
+                    <span id="langLabel" class="ml-1 text-xs font-bold">EN</span>
+                </button>
+                <button onclick="toggleTheme()"
+                    class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i id="themeIcon" class="fas fa-moon text-slate-500"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="pt-32 pb-20 px-6">
+        <div class="max-w-4xl mx-auto" data-aos="fade-up">
+            <header class="text-center mb-16">
+                <h1 class="text-4xl md:text-5xl font-extrabold mb-4 gradient-text" data-lang-key="h1">服务条款</h1>
+                <p class="text-slate-500" data-lang-key="modified">最近更新日期：2026年1月10日</p>
+            </header>
+
+            <div class="content-card prose dark:prose-invert">
+                <div id="content_zh">
+                    <h2>1. 接受条款</h2>
+                    <p>通过访问或使用 PicKoala（“本服务”），即表示您同意受这些条款的约束。如果您不同意本条款的任何部分，则不得访问或使用本服务。</p>
+
+                    <h2>2. 服务内容</h2>
+                    <p>PicKoala 为用户提供图片及文件的上传、托管、分发及在线编辑服务。我们有权根据业务发展需要随时调整、甚至暂时停止服务内容。</p>
+
+                    <h2>3. 用户行为准则</h2>
+                    <p>您对通过您的账户上传的所有内容负全部责任。严格禁止上传以下内容：</p>
+                    <ul>
+                        <li>淫秽、暴力或色情内容；</li>
+                        <li>侵犯他人知识产权（版权、商标等）的内容；</li>
+                        <li>包含病毒、木马或其他恶意代码的内容；</li>
+                        <li>非法活动信息的传播。</li>
+                    </ul>
+                    <p>我们内置智能审计服务，一经发现违规资源，将立即予以屏蔽或删除。严重违规者将导致账户永久封禁。</p>
+
+                    <h2>4. VIP 与支付</h2>
+                    <p>部分高级功能需购买 VIP 订阅。一旦支付生效，除了由于平台出现重大故障且无法修复外，订阅费通常是不可退还的。请在完成购买前审慎确认您的需求。</p>
+
+                    <h2>5. 知识产权</h2>
+                    <p>您保留对您上传的内容的所有权。通过上传内容，您授予 PicKoala 一项非独家的、免版税的全球许可，以用于为您提供托管和展示服务。</p>
+
+                    <h2>6. 免责声明</h2>
+                    <p>本服务按“原样”提供。PicKoala 不保证服务不中断、无差错或完全安全。在法律允许的最大范围内，我们不对任何由于数据丢失、服务中断导致的直接或间接损失负责。</p>
+                </div>
+
+                <div id="content_en" class="hidden">
+                    <h2>1. Acceptance of Terms</h2>
+                    <p>By accessing or using PicKoala (the "Service"), you agree to be bound by these Terms of Service.
+                        If you disagree with any part of these terms, you may not access the Service.</p>
+
+                    <h2>2. Service Scope</h2>
+                    <p>PicKoala provides image and file uploading, hosting, distribution, and online editing services.
+                        We reserve the right to modify or discontinue service features at any time.</p>
+
+                    <h2>3. User Conduct</h2>
+                    <p>You are solely responsible for all content uploaded via your account. The following content is
+                        strictly prohibited:</p>
+                    <ul>
+                        <li>Obscene, violent, or pornographic material;</li>
+                        <li>Content that infringes on third-party intellectual property;</li>
+                        <li>Malicious code, viruses, or trojans;</li>
+                        <li>Promotion of illegal activities.</li>
+                    </ul>
+                    <p>Our auditing system will automatically block or delete illicit content. Serious violations will
+                        result in permanent account suspension.</p>
+
+                    <h2>4. VIP & Payments</h2>
+                    <p>Certain premium features require a VIP subscription. Subscription fees are generally
+                        non-refundable except as required by law. Please review your plan before purchasing.</p>
+
+                    <h2>5. Intellectual Property</h2>
+                    <p>You retain ownership of the content you upload. By uploading, you grant PicKoala a non-exclusive,
+                        royalty-free, worldwide license to host and display the content for the purpose of providing the
+                        Service.</p>
+
+                    <h2>6. Limitation of Liability</h2>
+                    <p>The service is provided on an "as is" basis. PicKoala does not warrant that the service will be
+                        uninterrupted or error-free. To the fullest extent permitted by law, we are not liable for any
+                        direct or indirect damages resulting from data loss or service downtime.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-12 px-6 border-t border-slate-200 dark:border-white/10 text-center text-slate-400 text-sm">
+        <div class="mb-4">
+            <a href="landing.html" class="hover:text-primary mx-2">返回主页</a> |
+            <a href="privacy.html" class="hover:text-primary mx-2">隐私政策</a>
+        </div>
+        &copy; 2024-2026 PicKoala Pro. All rights reserved.
+    </footer>
+
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script>
+        AOS.init({ duration: 1000, once: true });
+
+        let currentLang = 'zh';
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('langLabel').textContent = currentLang === 'zh' ? 'EN' : '中';
+            document.title = currentLang === 'zh' ? '服务条款 - PicKoala' : 'Terms of Service - PicKoala';
+            document.querySelector('[data-lang-key="h1"]').textContent = currentLang === 'zh' ? '服务条款' : 'Terms of Service';
+            document.querySelector('[data-lang-key="modified"]').textContent = currentLang === 'zh' ? '最近更新日期：2026年1月10日' : 'Last Updated: Jan 10, 2026';
+
+            document.getElementById('content_zh').classList.toggle('hidden', currentLang === 'en');
+            document.getElementById('content_en').classList.toggle('hidden', currentLang === 'zh');
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.getElementById('themeIcon').className = isDark ? 'fas fa-sun text-slate-500' : 'fas fa-moon text-slate-500';
+            localStorage.setItem('landing-theme', isDark ? 'dark' : 'light');
+            updateLogos(isDark);
+        }
+
+        function updateLogos(isDark) {
+            const lightLogo = 'https://pickoala.com/img/images/2026/01/05/eEVuNDAY.webp';
+            const darkLogo = 'https://pickoala.com/img/images/2026/01/05/lw9l11s4.webp';
+            const logoUrl = isDark ? darkLogo : lightLogo;
+            document.getElementById('navLogo').src = logoUrl;
+        }
+
+        const savedTheme = localStorage.getItem('landing-theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('themeIcon').className = 'fas fa-sun text-slate-500';
+            updateLogos(true);
+        } else {
+            updateLogos(false);
+        }
+    </script>
+</body>
+
+</html>

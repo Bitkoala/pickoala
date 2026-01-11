@@ -85,15 +85,11 @@ def process_image(
         if extension == 'gif' and getattr(img, 'is_animated', False):
             return content, width, height, extension
         
-        # For WebP, PNG with transparency, keep format
-        if extension in ('webp', 'png'):
-            if img.mode in ('RGBA', 'LA', 'P'):
-                output = BytesIO()
-                if extension == 'webp':
-                    img.save(output, format='WEBP', quality=quality, optimize=True)
-                else:
-                    img.save(output, format='PNG', optimize=True)
-                return output.getvalue(), width, height, extension
+        # For WebP, PNG with transparency, keep format logic is removed.
+        # We now force everything to WebP unless it's an animated GIF.
+        
+        # Determine if we should convert to WebP
+        # (Already filtered out animated GIFs above)
         
         # Resize if needed
         if max_dimension and (width > max_dimension or height > max_dimension):
@@ -103,29 +99,19 @@ def process_image(
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             width, height = new_width, new_height
         
-        # Compress based on format
+        # Convert and Compress to WebP
         output = BytesIO()
         
-        if extension == 'webp':
-            img.save(output, format='WEBP', quality=quality, optimize=True)
-        elif extension == 'png':
-            img.save(output, format='PNG', optimize=True)
+        # Handle transparency for WebP
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+             if img.mode != 'RGBA':
+                 img = img.convert('RGBA')
         else:
-            # Convert to RGB for JPEG
-            if img.mode in ('RGBA', 'LA', 'P'):
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                if img.mode == 'P':
-                    img = img.convert('RGBA')
-                if img.mode == 'RGBA':
-                    background.paste(img, mask=img.split()[-1])
-                else:
-                    background.paste(img)
-                img = background
-            elif img.mode != 'RGB':
-                img = img.convert('RGB')
-            
-            img.save(output, format='JPEG', quality=quality, optimize=True)
-            extension = 'jpg'
+             if img.mode != 'RGB':
+                 img = img.convert('RGB')
+
+        img.save(output, format='WEBP', quality=quality, optimize=True)
+        extension = 'webp'
         
         return output.getvalue(), width, height, extension
         

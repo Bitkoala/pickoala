@@ -295,41 +295,42 @@ class S3CompatibleStorage(StorageBackend):
         except ClientError:
             return False
     
-    def get_url(self, file_path: str) -> str:
+    def get_url(self, file_path: str, is_internal: bool = False) -> str:
         """
-        Get the public URL for a file.
+        Get the URL for a file.
         
         Args:
             file_path: Relative file path (e.g., "2025/12/14/abc123.png" or "abc123.png")
-        
-        Returns:
-            Public URL for the file
+            is_internal: If True, returns the real S3 URL for proxying.
         """
         key = f"images/{file_path}"
         
-        # Use custom public URL if provided
-        if self.public_url:
-            url = f"{self.public_url}/{key}"
-            logger.debug(f"get_url using public_url: {url}")
-            return url
+        # If public_url is configured and it's an external domain, 
+        # it's the most reliable source even for internal proxying.
+        if self.public_url and (is_internal or not self.public_url.startswith('/')):
+            return f"{self.public_url}/{key}"
+            
+        if is_internal or self.public_url:
+            if self.endpoint:
+                # Intelligent bucket insertion:
+                # If endpoint already contains /{bucket}, don't append it again
+                endpoint = self.endpoint.rstrip('/')
+                if self._path_style:
+                    if f"/{self.bucket}" in endpoint:
+                        url = f"{endpoint}/{key}"
+                    else:
+                        url = f"{endpoint}/{self.bucket}/{key}"
+                else:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(endpoint)
+                    if self.bucket in parsed.netloc:
+                        url = f"{endpoint}/{key}"
+                    else:
+                        url = f"{parsed.scheme}://{self.bucket}.{parsed.netloc}/{key}"
+                return url
         
-        # Build URL based on endpoint and path style
-        if self.endpoint:
-            if self._path_style:
-                url = f"{self.endpoint}/{self.bucket}/{key}"
-            else:
-                # Virtual-hosted style - need to insert bucket into hostname
-                # e.g., https://bucket.cos.ap-guangzhou.myqcloud.com/key
-                from urllib.parse import urlparse
-                parsed = urlparse(self.endpoint)
-                url = f"{parsed.scheme}://{self.bucket}.{parsed.netloc}/{key}"
-            logger.debug(f"get_url using endpoint (path_style={self._path_style}): {url}")
-            return url
-        else:
-            # Default AWS S3 URL
-            url = f"https://{self.bucket}.s3.{self.region}.amazonaws.com/{key}"
-            logger.debug(f"get_url using default AWS URL: {url}")
-            return url
+        # External proxy mode (site domain)
+        return f"/img/{key}"
     
     @property
     def storage_type(self) -> str:

@@ -173,12 +173,13 @@ class LocalStorage(StorageBackend):
         
         return os.path.exists(full_path)
     
-    def get_url(self, file_path: str) -> str:
+    def get_url(self, file_path: str, is_internal: bool = False) -> str:
         """
         Get the URL for a file.
         
         Args:
             file_path: Relative file path (e.g., "2025/12/14/abc123.png" or "abc123.png")
+            is_internal: Ignored for local storage
         
         Returns:
             If public_url is set: {public_url}/uploads/{file_path}

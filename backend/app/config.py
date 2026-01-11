@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     audit_api_key: Optional[str] = None
     audit_api_secret: Optional[str] = None
 
+    # AI Integration (Google Gemini)
+    gemini_api_keys: Optional[str] = None  # Comma-separated list of API keys
+
     @property
     def allowed_extensions_list(self) -> list[str]:
         return [ext.strip().lower() for ext in self.upload_allowed_extensions.split(",")]

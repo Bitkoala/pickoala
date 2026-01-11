@@ -54,8 +54,12 @@ async def send_email(
         from_address = await settings_service.get_email_from_address()
         from_name = await settings_service.get_email_from_name()
         
+        # Fallback to smtp_user if from_address is empty (required by many SMTP servers)
+        from_address = from_address or smtp_user
+        
+        from email.utils import formataddr
         message = MIMEMultipart("alternative")
-        message["From"] = f"{Header(from_name, 'utf-8')} <{from_address}>"
+        message["From"] = formataddr((from_name, from_address))
         message["To"] = to_email
         message["Subject"] = Header(subject, "utf-8")
 

@@ -16,13 +16,15 @@ class OSSStorage(StorageBackend):
         access_key_id: str = None,
         access_key_secret: str = None,
         bucket_name: str = None,
-        endpoint: str = None
+        endpoint: str = None,
+        public_url: str = None
     ):
         # Use passed parameters or fall back to settings
         ak_id = access_key_id or settings.oss_access_key_id
         ak_secret = access_key_secret or settings.oss_access_key_secret
         bucket = bucket_name or settings.oss_bucket_name
         ep = endpoint or settings.oss_endpoint
+        pub_url = public_url or settings.oss_public_url
         
         if not all([ak_id, ak_secret, bucket, ep]):
             raise ValueError("OSS configuration is incomplete")
@@ -31,6 +33,7 @@ class OSSStorage(StorageBackend):
         self.bucket = oss2.Bucket(self.auth, ep, bucket)
         self.endpoint = ep
         self.bucket_name = bucket
+        self.public_url = pub_url.rstrip('/') if pub_url else None
     
     async def save(self, content: bytes, filename: str, date_path: Optional[str] = None) -> str:
         """
@@ -97,16 +100,19 @@ class OSSStorage(StorageBackend):
         except:
             return False
     
-    def get_url(self, file_path: str) -> str:
-        """
-        Get the public URL for a file in OSS.
-        
-        Args:
-            file_path: Relative file path (e.g., "2025/12/14/abc123.png" or "abc123.png")
-        """
-        # Extract domain from endpoint
-        endpoint = self.endpoint.replace("https://", "").replace("http://", "")
-        return f"https://{self.bucket_name}.{endpoint}/images/{file_path}"
+    def get_url(self, file_path: str, is_internal: bool = False) -> str:
+        """Get URL for OSS."""
+        key = f"images/{file_path}"
+        if is_internal or self.public_url:
+            if not is_internal and self.public_url:
+                return f"{self.public_url}/{key}"
+            
+            # Default OSS URL
+            endpoint = self.endpoint.replace("https://", "").replace("http://", "")
+            return f"https://{self.bucket_name}.{endpoint}/{key}"
+            
+        # Proxy path if no public URL
+        return f"/img/{key}"
     
     @property
     def storage_type(self) -> str:

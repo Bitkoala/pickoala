@@ -1,0 +1,57 @@
+services:
+  backend:
+    build:
+      # 使用相对路径，兼容所有面板
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pickoala-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      # 挂载上传目录到宿主机，防止数据丢失！
+      # 宿主机目录 : 容器内目录
+      - ./uploads:/app/uploads
+      - ./backend:/app
+    environment:
+      # 1Panel 兼容格式 (Mapping)
+      # 连接内部 MySQL 容器
+      DATABASE_URL: "mysql+aiomysql://root:password@mysql:3306/pickoala?charset=utf8mb4"
+      REDIS_URL: "redis://redis:6379/0"
+      REDIS_ENABLED: "true"
+      APP_SECRET_KEY: "change_this_secret_key"
+
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - pickoala-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: pickoala-mysql
+    restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_DATABASE: "pickoala"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 使用相对路径挂载初始化脚本
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - pickoala-net
+
+  redis:
+    image: redis:6-alpine
+    container_name: pickoala-redis
+    restart: always
+    networks:
+      - pickoala-net
+
+networks:
+  pickoala-net:
+    driver: bridge
+
+volumes:
+  mysql_data:

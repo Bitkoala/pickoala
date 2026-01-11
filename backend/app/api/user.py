@@ -94,6 +94,20 @@ async def update_current_user(
             )
         user.email = data.email
         # TODO: Re-verify email?
+        
+    # Update Watermark Settings
+    if data.watermark_enabled is not None:
+        user.watermark_enabled = data.watermark_enabled
+    if data.watermark_type is not None:
+        user.watermark_type = data.watermark_type
+    if data.watermark_text is not None:
+        user.watermark_text = data.watermark_text
+    if data.watermark_image_path is not None:
+        user.watermark_image_path = data.watermark_image_path
+    if data.watermark_opacity is not None:
+        user.watermark_opacity = data.watermark_opacity
+    if data.watermark_position is not None:
+        user.watermark_position = data.watermark_position
     
     await db.commit()
     await db.refresh(user)

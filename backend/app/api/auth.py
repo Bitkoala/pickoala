@@ -9,7 +9,10 @@ import logging
 import re
 from app.database import get_db
 from app.models.user import User, UserStatus, UserRole
-from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse, PasswordReset, PasswordResetConfirm
+from app.schemas.user import (
+    UserCreate, UserLogin, UserResponse, TokenResponse, 
+    PasswordReset, PasswordResetConfirm, RESERVED_USERNAMES
+)
 from app.utils.security import (
     get_password_hash, 
     verify_password, 
@@ -28,11 +31,266 @@ from app.utils.rate_limit import (
 from app.utils.captcha import create_captcha_redis, verify_captcha_redis
 from app.services.email import send_verification_email, send_password_reset_email
 from app.config import get_settings
-from app.api.admin.audit import create_audit_log
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# OAuth 2.0 Helpers & Endpoints
+
+class OAuthCallbackSchema(BaseModel):
+    code: str
+    state: str = None
+    redirect_url: str
+
+@router.get("/oauth/url/{provider}")
+async def get_oauth_url(provider: str, redirect_url: str):
+    """Generate OAuth authorization URL for the given provider."""
+    from app.services.settings import get_setting_bool, get_setting
+    from urllib.parse import urlencode
+    
+    if provider == "google":
+        if not await get_setting_bool("oauth_google_enabled"):
+            raise HTTPException(status_code=403, detail="Google login is disabled")
+        client_id = await get_setting("oauth_google_client_id")
+        if not client_id:
+            raise HTTPException(status_code=400, detail="Google Client ID not configured")
+        
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_url,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "select_account"
+        }
+    elif provider == "linuxdo":
+        if not await get_setting_bool("oauth_linuxdo_enabled"):
+            raise HTTPException(status_code=403, detail="Linux.do login is disabled")
+        client_id = await get_setting("oauth_linuxdo_client_id")
+        if not client_id:
+            raise HTTPException(status_code=400, detail="Linux.do Client ID not configured")
+            
+        auth_url = "https://connect.linux.do/oauth2/authorize"
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_url,
+            "response_type": "code",
+            "scope": "openid email",
+        }
+    elif provider == "github":
+        if not await get_setting_bool("oauth_github_enabled"):
+            raise HTTPException(status_code=403, detail="GitHub login is disabled")
+        client_id = await get_setting("oauth_github_client_id")
+        if not client_id:
+            raise HTTPException(status_code=400, detail="GitHub Client ID not configured")
+            
+        auth_url = "https://github.com/login/oauth/authorize"
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_url,
+            "scope": "read:user user:email",
+        }
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    
+    return {"url": f"{auth_url}?{urlencode(params)}"}
+
+
+@router.post("/oauth/callback/{provider}", response_model=TokenResponse)
+async def oauth_callback(
+    provider: str,
+    data: OAuthCallbackSchema,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle OAuth 2.0 callback and perform login/registration."""
+    import httpx
+    from app.services.settings import get_setting, get_setting_bool
+    
+    ip = get_real_ip(request)
+    
+    # 1. Configuration Check
+    if provider == "google":
+        if not await get_setting_bool("oauth_google_enabled"):
+            raise HTTPException(status_code=403, detail="Google login is disabled")
+        client_id = await get_setting("oauth_google_client_id")
+        client_secret = await get_setting("oauth_google_client_secret")
+        token_url = "https://oauth2.googleapis.com/token"
+        userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
+    elif provider == "linuxdo":
+        if not await get_setting_bool("oauth_linuxdo_enabled"):
+            raise HTTPException(status_code=403, detail="Linux.do login is disabled")
+        client_id = await get_setting("oauth_linuxdo_client_id")
+        client_secret = await get_setting("oauth_linuxdo_client_secret")
+        token_url = "https://connect.linux.do/oauth2/token"
+        userinfo_url = "https://connect.linux.do/api/user"
+    elif provider == "github":
+        if not await get_setting_bool("oauth_github_enabled"):
+            raise HTTPException(status_code=403, detail="GitHub login is disabled")
+        client_id = await get_setting("oauth_github_client_id")
+        client_secret = await get_setting("oauth_github_client_secret")
+        token_url = "https://github.com/login/oauth/access_token"
+        userinfo_url = "https://api.github.com/user"
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail=f"{provider.capitalize()} OAuth credentials not configured")
+
+    # 2. Exchange Code for Token
+    async with httpx.AsyncClient() as client:
+        try:
+            token_res = await client.post(
+                token_url,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": data.code,
+                    "redirect_uri": data.redirect_url,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                },
+                headers={"Accept": "application/json"},
+                timeout=10.0
+            )
+            if token_res.status_code != 200:
+                logger.error(f"{provider} token exchange failed: {token_res.text}")
+                raise HTTPException(status_code=400, detail=f"Failed to exchange token: {token_res.text}")
+            
+            token_data = token_res.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                raise HTTPException(status_code=400, detail="Token response missing access_token")
+
+            # 3. Get User Info
+            user_res = await client.get(
+                userinfo_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10.0
+            )
+            if user_res.status_code != 200:
+                logger.error(f"{provider} userinfo request failed: {user_res.text}")
+                raise HTTPException(status_code=400, detail="Failed to fetch user information")
+            
+            user_info = user_res.json()
+        except httpx.RequestError as e:
+            logger.error(f"HTTP error during OAuth flow with {provider}: {e}")
+            raise HTTPException(status_code=502, detail=f"OAuth service communication error")
+
+    # 4. Extract User Data
+    # Normalizing user info across providers
+    external_id = None
+    email = None
+    username = None
+
+    if provider == "google":
+        external_id = user_info.get("sub")
+        email = user_info.get("email")
+        username = user_info.get("name") or email.split('@')[0] if email else None
+    elif provider == "linuxdo":
+        # Adjust these keys based on Linux.do API response
+        external_id = str(user_info.get("id"))
+        email = user_info.get("email")
+        username = user_info.get("username") or user_info.get("name") or (email.split('@')[0] if email else None)
+    elif provider == "github":
+        external_id = str(user_info.get("id"))
+        email = user_info.get("email")
+        username = user_info.get("login") or user_info.get("name") or (email.split('@')[0] if email else None)
+        
+        # GitHub might not return email if it's private, we might need to fetch it separately
+        if not email:
+            try:
+                emails_res = await client.get(
+                    "https://api.github.com/user/emails",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    timeout=5.0
+                )
+                if emails_res.status_code == 200:
+                    emails = emails_res.json()
+                    primary_email = next((e["email"] for e in emails if e["primary"]), None)
+                    email = primary_email or (emails[0]["email"] if emails else None)
+            except Exception as e:
+                logger.warning(f"Failed to fetch GitHub emails: {e}")
+
+    if not external_id:
+        logger.error(f"Could not extract unique user ID from {provider} UserInfo: {user_info}")
+        raise HTTPException(status_code=400, detail=f"Failed to identify user from {provider}")
+
+    # Prefixed external_id to avoid collisions between providers
+    full_external_id = f"{provider}:{external_id}"
+
+    # 5. Find or Create User
+    # We use oauth_id column as a generic external_id
+    result = await db.execute(select(User).where(User.oauth_id == full_external_id))
+    user = result.scalar_one_or_none()
+    
+    if not user and email:
+        # Try to link by email if external_id not found
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            user.oauth_id = full_external_id # Link existing account
+    
+    if not user:
+        # Create new user
+        if not username:
+            username = f"{provider}_{external_id[:8]}"
+            
+        # Check for username collision
+        result = await db.execute(select(User).where(User.username == username))
+        if result.scalar_one_or_none():
+            username = f"{username}_{str(uuid.uuid4())[:4]}"
+            
+        user = User(
+            username=username,
+            email=email or f"{external_id}@{provider}.local",
+            oauth_id=full_external_id,
+            hashed_password=f"OAUTH_{provider.upper()}_MANAGED", # Standard login disabled
+            role=UserRole.USER,
+            status=UserStatus.ACTIVE,
+            email_verified=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info(f"New user created via {provider} OAuth: {user.username}")
+    else:
+        # Update last login info
+        user.last_login_at = datetime.utcnow()
+        user.last_login_ip = ip
+        if user.status == UserStatus.PENDING:
+            user.status = UserStatus.ACTIVE
+            user.email_verified = True
+        await db.commit()
+
+    # 6. Generate JWT Tokens
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    
+    # 7. Audit Log
+    try:
+        from app.api.admin.audit import create_audit_log
+        await create_audit_log(
+            db=db,
+            action=f"login_{provider}",
+            ip_address=ip,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=user.id,
+            user_agent=request.headers.get("User-Agent"),
+            details=f"User {user.username} logged in via {provider}",
+            log_status="success"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create audit log for OAuth login: {e}")
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=settings.jwt_access_token_expire_minutes * 60
+    )
+
 
 # Regex patterns
 USERNAME_REGEX = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]*$')
@@ -90,6 +348,14 @@ async def register(
         )
     
     # Check if registration is enabled
+    from app.services.settings import is_registration_enabled, get_setting
+    if not await is_registration_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is currently disabled"
+        )
+        
+    
     if not await is_registration_enabled():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -107,6 +373,20 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="用户名只能包含字母、数字和下划线，且必须以字母开头"
+        )
+
+    # Check reserved usernames
+    if user_data.username.lower() in RESERVED_USERNAMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该用户名被系统保留，无法使用"
+        )
+        
+    # Check forbidden prefixes
+    if user_data.username.lower().startswith(('admin', 'system', 'root')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名包含非法关键词"
         )
     
     # Input validation - email
@@ -185,17 +465,21 @@ async def register(
     logger.info(f"New user registered: {user.username} from IP {ip}")
     
     # 记录审计日志
-    await create_audit_log(
-        db=db,
-        action="register",
-        ip_address=ip,
-        user_id=user.id,
-        resource_type="user",
-        resource_id=user.id,
-        user_agent=request.headers.get("User-Agent"),
-        details=f"New user registered: {user.username}",
-        log_status="success"
-    )
+    try:
+        from app.api.admin.audit import create_audit_log
+        await create_audit_log(
+            db=db,
+            action="register",
+            ip_address=ip,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=user.id,
+            user_agent=request.headers.get("User-Agent"),
+            details=f"New user registered: {user.username}",
+            log_status="success"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create audit log for registration: {e}")
     
     return user
 
@@ -207,6 +491,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ):
     """Login and get access token."""
+        
     ip = get_real_ip(request)
     
     # Debug: Log all relevant headers and detected IP
@@ -237,6 +522,13 @@ async def login(
         )
     )
     user = result.scalar_one_or_none()
+    
+    # Check if it's an OAuth managed account (starts with OAUTH_ or is CASDOOR_MANAGED legacy)
+    if user and (user.hashed_password.startswith("OAUTH_") or user.hashed_password == "CASDOOR_MANAGED"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="此账号通过第三方登录创建，请使用对应的第三方平台登录。"
+        )
     
     if not user or not verify_password(user_data.password, user.hashed_password):
         await record_failed_login(ip)
@@ -279,17 +571,21 @@ async def login(
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
     
     # 记录登录审计日志
-    await create_audit_log(
-        db=db,
-        action="login",
-        ip_address=ip,
-        user_id=user.id,
-        resource_type="user",
-        resource_id=user.id,
-        user_agent=request.headers.get("User-Agent"),
-        details=f"User {user.username} logged in",
-        log_status="success"
-    )
+    try:
+        from app.api.admin.audit import create_audit_log
+        await create_audit_log(
+            db=db,
+            action="login",
+            ip_address=ip,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=user.id,
+            user_agent=request.headers.get("User-Agent"),
+            details=f"User {user.username} logged in",
+            log_status="success"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create audit log for login: {e}")
     
     return TokenResponse(
         access_token=access_token,
@@ -382,6 +678,7 @@ async def forgot_password(
 ):
     """Request password reset email with captcha verification."""
     ip = get_real_ip(request)
+    from app.services.settings import get_setting
     
     # Rate limit: max 3 password reset requests per IP per hour
     is_allowed, count, remaining = await check_rate_limit(f"forgot_password:{ip}", 3, 3600)

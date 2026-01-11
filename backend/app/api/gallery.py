@@ -227,7 +227,7 @@ async def download_public_album(
     ip = get_real_ip(request)
     
     # Rate limiting: 5 downloads per hour per IP
-    redis = await get_redis()
+    redis = get_redis()
     if redis:
         rate_key = f"gallery_download:{ip}"
         current = await redis.get(rate_key)

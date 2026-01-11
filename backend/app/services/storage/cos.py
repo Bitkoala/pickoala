@@ -152,23 +152,16 @@ class COSStorage(StorageBackend):
         except Exception:
             return False
     
-    def get_url(self, file_path: str) -> str:
-        """
-        Get the public URL for a file in COS.
-        
-        Args:
-            file_path: Relative file path (e.g., "2025/12/14/abc123.png" or "abc123.png")
-        
-        Returns:
-            Public URL for the file
-        """
+    def get_url(self, file_path: str, is_internal: bool = False) -> str:
+        """Get common URL for COS."""
         key = f"images/{file_path}"
         
-        if self.public_url:
-            return f"{self.public_url}/{key}"
-        else:
-            # Default COS URL format
-            return f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{key}"
+        if is_internal or self.public_url:
+            base_url = self.public_url if (not is_internal and self.public_url) else f"https://{self.bucket}.cos.{self.region}.myqcloud.com"
+            return f"{base_url}/{key}"
+        
+        # Default to backend proxy
+        return f"/img/{key}"
     
     @property
     def storage_type(self) -> str:

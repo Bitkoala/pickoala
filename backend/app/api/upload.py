@@ -2,7 +2,7 @@
 Image Upload API
 图片上传接口 - 支持异步审核模式
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, BackgroundTasks, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import json
@@ -18,12 +18,17 @@ from app.utils.date_path import get_date_path
 from app.services.image import process_image
 from app.services.storage import get_storage_backend_async
 from app.services.audit import get_audit_service, run_audit_in_background
+
+from app.services.watermark import apply_watermark
+from app.services.ai_service import gemini_service
 from app.services import settings as settings_service
 from app.services import security as security_service
 from app.config import get_settings
 from app.api.admin.audit import create_audit_log
 import logging
 from datetime import datetime
+import os
+from sqlalchemy import select
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 config = get_settings()
@@ -36,6 +41,8 @@ async def upload_image(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     album_id: Optional[int] = None,
+    with_watermark: bool = Form(False),
+    watermark_config: Optional[str] = Form(None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ):
@@ -118,7 +125,7 @@ async def upload_image(
     if corrected_extension != extension:
         logger.info(f"[Upload] Extension auto-corrected: {extension} -> {corrected_extension}")
         extension = corrected_extension
-    
+
     logger.info(f"[Upload] Validated: mime_type={mime_type}, extension={extension}")
     
     # ========== 图片处理 ==========
@@ -126,9 +133,32 @@ async def upload_image(
     processed_content, width, height, final_extension = process_image(
         content, extension, quality=compression_quality
     )
+
+    # Update mime_type if converted to webp
+    if final_extension == 'webp' and extension != 'webp':
+        mime_type = 'image/webp'
+        logger.info(f"[Upload] Converted to WebP, mime_type updated to {mime_type}")
+    
+    # Apply watermark if requested and user has permission
+    if with_watermark and user:
+        # Check VIP status
+        is_vip_for_wm = False
+        if user.vip_expire_at and user.vip_expire_at > datetime.utcnow():
+            is_vip_for_wm = True
+            
+        if is_vip_for_wm:
+             # Parse watermark config
+             wm_config_dict = {}
+             if watermark_config:
+                 try:
+                     wm_config_dict = json.loads(watermark_config)
+                 except Exception as e:
+                     logger.warning(f"Failed to parse watermark config: {e}")
+             
+             # Pass config to apply_watermark (overrides user settings)
+             processed_content = apply_watermark(processed_content, user, config=wm_config_dict)
     
     # ========== 生成文件名 ==========
-    from sqlalchemy import select
     while True:
         filename = generate_random_string(8)
         result = await db.execute(select(Image).where(Image.filename == filename))
@@ -194,18 +224,16 @@ async def upload_image(
             if image.storage_url:
                 image_public_url = image.storage_url
             else:
-                # 本地存储：需要拼接站点URL构建完整公网URL
+                # Generic fallback using site_url + image.url
                 site_url = await settings_service.get_site_url()
-                # 确保 site_url 没有尾部斜杠
                 site_url = site_url.rstrip('/') if site_url else ''
                 
-                # 如果 site_url 为空，跳过审核（无法构建公网URL）
                 if not site_url:
                     logger.warning(f"[Upload] site_url not configured, skipping audit for image {image.id}")
                     image_public_url = None
                 else:
-                    # 使用 file_path（包含日期路径）构建完整URL
-                    image_public_url = f"{site_url}/uploads/{image.file_path}"
+                    # image.url is the relative path (e.g. /uploads/... or /img/images/...)
+                    image_public_url = f"{site_url}{image.url}"
             
             # 添加后台任务 - 不阻塞响应（仅当有有效URL时）
             if image_public_url:
@@ -250,8 +278,64 @@ async def upload_image(
         logger.warning(f"Failed to schedule realtime backup: {e}")
     
     # ========== 返回响应 ==========
-    image_url = image.url
+    image_url = image.url    # 6. Return response
     
+    # Trigger AI Analysis in Background
+    if image and image.id:
+        # Check if Gemini is configured before setting status and adding task
+        gemini_keys = await settings_service.get_gemini_api_keys()
+        if gemini_keys:
+            image.ai_analysis_status = "pending"
+            await db.commit()
+            
+            # Define the background task wrapper
+            async def run_ai_analysis(img_id: int, file_path: str, db_session_maker):
+                # Create a new session for the background task
+                async with db_session_maker() as session:
+                    try:
+                        logger.info(f"Starting AI analysis for image {img_id}")
+                        # Update status to processing
+                        stmt_update = select(Image).where(Image.id == img_id)
+                        res_update = await session.execute(stmt_update)
+                        db_img_update = res_update.scalar_one_or_none()
+                        if db_img_update:
+                            db_img_update.ai_analysis_status = "processing"
+                            await session.commit()
+
+                        full_path = os.path.join(config.upload_path, file_path)
+                        result = await gemini_service.analyze_image(full_path)
+                        
+                        if "error" not in result:
+                            # Update DB
+                            stmt = select(Image).where(Image.id == img_id)
+                            result_db = await session.execute(stmt)
+                            db_img = result_db.scalar_one_or_none()
+                            
+                            if db_img:
+                                db_img.ai_tags = json.dumps(result.get("tags", []))
+                                db_img.ai_description = result.get("description", "")
+                                db_img.ai_analysis_status = "completed"
+                                await session.commit()
+                                logger.info(f"AI analysis completed for image {img_id}")
+                        else:
+                            logger.error(f"AI analysis failed for image {img_id}: {result['error']}")
+                            # Update status to failed
+                            stmt = select(Image).where(Image.id == img_id)
+                            result_db = await session.execute(stmt)
+                            db_img = result_db.scalar_one_or_none()
+                            if db_img:
+                                db_img.ai_analysis_status = "failed"
+                                await session.commit()
+
+                    except Exception as e:
+                        logger.error(f"Background AI task error: {str(e)}")
+
+            # Trigger AI analysis if enabled
+            if await settings_service.is_ai_analysis_enabled():
+                # We need a session maker to pass to the background task
+                from app.database import AsyncSessionLocal
+                background_tasks.add_task(run_ai_analysis, image.id, image.file_path, AsyncSessionLocal)
+
     return ImageUploadResponse(
         success=True,
         image=ImageResponse.model_validate(image),
@@ -271,4 +355,4 @@ async def upload_from_paste(
     db: AsyncSession = Depends(get_db),
 ):
     """从剪贴板粘贴上传"""
-    return await upload_image(request, background_tasks, file, None, user, db)
+    return await upload_image(request, background_tasks, file, None, False, None, user, db)

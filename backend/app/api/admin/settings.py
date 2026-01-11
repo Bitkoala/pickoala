@@ -41,6 +41,12 @@ DEFAULT_SETTINGS = {
         "file_max_size_user": {"value": "104857600", "description": "User file upload limit (bytes)"},
         "file_max_size_vip": {"value": "524288000", "description": "VIP file upload limit (bytes)"},
         "file_allowed_extensions": {"value": "zip,rar,7z,tar,gz,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md", "description": "Allowed file extensions (comma separated)"},
+        
+        # Video Limits
+        "video_max_size_guest": {"value": "20971520", "description": "Guest video upload limit (bytes) - 20MB"},
+        "video_max_size_user": {"value": "104857600", "description": "User video upload limit (bytes) - 100MB"},
+        "video_max_size_vip": {"value": "1073741824", "description": "VIP video upload limit (bytes) - 1GB"},
+        "video_allowed_extensions": {"value": "mp4,webm,mov,avi,mkv", "description": "Allowed video extensions"},
     },
     "storage": {
         "type": {"value": "local", "description": "Storage type: local, s3c, oss, cos"},
@@ -87,6 +93,17 @@ DEFAULT_SETTINGS = {
         "rate_limit_vip_file_per_minute": {"value": "10", "description": "VIP file upload limit per minute"},
         "rate_limit_vip_file_per_hour": {"value": "50", "description": "VIP file upload limit per hour"},
         "rate_limit_vip_file_per_day": {"value": "200", "description": "VIP file upload limit per day"},
+        
+        # Video Rate Limits
+        "rate_limit_guest_video_per_minute": {"value": "1", "description": "Guest video upload limit per minute"},
+        "rate_limit_guest_video_per_hour": {"value": "5", "description": "Guest video upload limit per hour"},
+        "rate_limit_guest_video_per_day": {"value": "10", "description": "Guest video upload limit per day"},
+        "rate_limit_user_video_per_minute": {"value": "2", "description": "User video upload limit per minute"},
+        "rate_limit_user_video_per_hour": {"value": "20", "description": "User video upload limit per hour"},
+        "rate_limit_user_video_per_day": {"value": "50", "description": "User video upload limit per day"},
+        "rate_limit_vip_video_per_minute": {"value": "5", "description": "VIP video upload limit per minute"},
+        "rate_limit_vip_video_per_hour": {"value": "50", "description": "VIP video upload limit per hour"},
+        "rate_limit_vip_video_per_day": {"value": "200", "description": "VIP video upload limit per day"},
         
         "rate_limit_login_attempts": {"value": "5", "description": "Max login attempts before lockout"},
         "auto_ban_enabled": {"value": "true", "description": "Enable automatic banning"},
@@ -154,10 +171,18 @@ DEFAULT_SETTINGS = {
         "stripe_currency": {"value": "hkd", "description": "Payment Currency (usd, cny, hkd)"},
         
         # Alipay Settings
-        "alipay_enabled": {"value": "false", "description": "Enable Alipay Payment"},
+        "alipay_enabled": {"value": "false", "description": "Enable Alipay (RSA2 Public/Private key)"},
         "alipay_app_id": {"value": "", "description": "Alipay App ID"},
         "alipay_private_key": {"value": "", "description": "Alipay Private Key (RSA2)"},
         "alipay_public_key": {"value": "", "description": "Alipay Public Key"},
+        
+        # Epay Settings
+        "epay_enabled": {"value": "false", "description": "Enable Epay Payment (EasyPay compatibility)"},
+        "epay_api_url": {"value": "", "description": "Epay API URL (e.g. https://pay.example.com/submit.php)"},
+        "epay_partner_id": {"value": "", "description": "Epay Partner ID (PID)"},
+        "epay_partner_key": {"value": "", "description": "Epay Partner Key (KEY)"},
+        "epay_name": {"value": "{\"zh-CN\": \"易支付\", \"en\": \"Epay\"}", "description": "Epay Display Name (Supports JSON for multi-language, e.g. {\"zh-CN\": \"易支付\", \"en\": \"Epay\"})"},
+        "epay_logo_url": {"value": "", "description": "Epay Logo URL (Optional, replaces default icon)"},
         
         # VIP Plans
         "vip_month_enabled": {"value": "true", "description": "Enable Monthly Plan"},
@@ -171,10 +196,39 @@ DEFAULT_SETTINGS = {
         "vip_year_enabled": {"value": "true", "description": "Enable Yearly Plan"},
         "vip_year_price": {"value": "99.99", "description": "Yearly Plan Price"},
         "vip_year_stripe_id": {"value": "", "description": "Yearly Plan Stripe Price ID"},
-        
         "vip_forever_enabled": {"value": "false", "description": "Enable Lifetime Plan"},
         "vip_forever_price": {"value": "299.99", "description": "Lifetime Plan Price"},
         "vip_forever_stripe_id": {"value": "", "description": "Lifetime Plan Stripe Price ID"},
+    },
+    "oauth": {
+        "google_enabled": {"value": "false", "description": "Enable Google OAuth 2.0"},
+        "google_client_id": {"value": "", "description": "Google Client ID"},
+        "google_client_secret": {"value": "", "description": "Google Client Secret"},
+        "linuxdo_enabled": {"value": "false", "description": "Enable Linux.do OAuth 2.0"},
+        "linuxdo_client_id": {"value": "", "description": "Linux.do Client ID"},
+        "linuxdo_client_secret": {"value": "", "description": "Linux.do Client Secret"},
+        "github_enabled": {"value": "false", "description": "Enable GitHub OAuth 2.0"},
+        "github_client_id": {"value": "", "description": "GitHub Client ID"},
+        "github_client_secret": {"value": "", "description": "GitHub Client Secret"},
+    },
+    "announcement": {
+        "popup_enabled": {"value": "false", "description": "是否启用弹窗公告"},
+        "popup_content": {"value": "", "description": "弹窗公告内容"},
+        "navbar_enabled": {"value": "false", "description": "是否启用顶部看板公告"},
+        "navbar_content": {"value": "", "description": "顶部看板公告内容"},
+    },
+    "home": {
+        "features": {"value": "[]", "description": "首页特性 JSON"},
+        "table_cols": {"value": "{}", "description": "首页对比表列 JSON"},
+        "table_rows": {"value": "{}", "description": "首页对比表行 JSON"},
+    },
+    "cdn": {
+        "cf_purge_enabled": {"value": "false", "description": "Enable Cloudflare Cache Auto-Purge (Clear CDN cache on image delete)"},
+        "cf_api_token": {"value": "", "description": "Cloudflare API Token (Requires Cache Purge permission)"},
+        "cf_zone_id": {"value": "", "description": "Cloudflare Zone ID (Found in Domain Overview)"},
+    },
+    "ai": {
+        "gemini_api_keys": {"value": "", "description": "Google Gemini API Keys (comma separated for rotation)"},
     },
 }
 

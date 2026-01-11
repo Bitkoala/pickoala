@@ -23,6 +23,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
+    oauth_id = Column(String(255), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
     # Use values_callable to match MySQL lowercase enum values
     role = Column(
@@ -43,6 +44,14 @@ class User(Base):
     
     # VIP Status
     vip_expire_at = Column(DateTime, nullable=True)
+    
+    # VIP Watermark Settings
+    watermark_enabled = Column(Boolean, default=False)
+    watermark_type = Column(String(20), default="text")  # text, image
+    watermark_text = Column(String(100), nullable=True)
+    watermark_image_path = Column(String(500), nullable=True)
+    watermark_opacity = Column(Integer, default=50) # 0-100
+    watermark_position = Column(String(20), default="bottom-right") # top-left, top-right, bottom-left, bottom-right, center
     
     # Password reset
     password_reset_token = Column(String(255), nullable=True)

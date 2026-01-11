@@ -47,8 +47,8 @@ class StorageBackend(ABC):
         pass
     
     @abstractmethod
-    def get_url(self, filename: str) -> str:
-        """Get the public URL for a file."""
+    def get_url(self, filename: str, is_internal: bool = False) -> str:
+        """Get the URL for a file. If is_internal=True, return real cloud URL."""
         pass
     
     @property

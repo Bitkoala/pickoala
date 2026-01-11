@@ -38,6 +38,9 @@ class FilePublicResponse(BaseModel):
     expire_at: Optional[datetime]
     created_at: datetime
     download_count: int # Maybe hide this for privacy? Keeping for now logic
+    has_password: bool = False
+    thumbnail_path: Optional[str] = None
+    mime_type: Optional[str] = None
     
     class Config:
         from_attributes = True

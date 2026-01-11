@@ -269,6 +269,9 @@ INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('general_enable_registration', 'true', '是否允许注册', 'general');
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('general_enable_guest_upload', 'true', '是否允许游客上传', 'general');
 
+-- Appearance Settings
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('appearance_theme_mode', 'light', 'Default Theme (light, dark, aurora)', 'appearance');
+
 -- Upload Settings
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('upload_max_size_guest', '5242880', '游客最大上传大小（字节）', 'upload');
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('upload_max_size_user', '10485760', '会员最大上传大小（字节）', 'upload');
@@ -366,6 +369,12 @@ INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_alipay_app_id', '', '支付宝 AppID', 'payment');
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_alipay_private_key', '', '支付宝应用私钥', 'payment');
 INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_alipay_public_key', '', '支付宝公钥', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_enabled', 'false', '是否启用易支付', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_api_url', '', '易支付 API 地址', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_partner_id', '', '易支付 PID', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_partner_key', '', '易支付 Key', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_name', '{"zh-CN": "易支付", "en": "Epay"}', '易支付显示名称（支持JSON多语言）', 'payment');
+INSERT INTO `system_settings` (`key`, `value`, `description`, `category`) VALUES ('payment_epay_logo_url', '', '易支付 Logo URL（可选）', 'payment');
 
 -- Payment Settings (VIP Plans)
 -- Monthly
@@ -524,7 +533,7 @@ CREATE TABLE IF NOT EXISTS `backup_logs` (
 CREATE TABLE IF NOT EXISTS `payment_transactions` (
     `id` INT NOT NULL AUTO_INCREMENT,
     `user_id` INT NOT NULL,
-    `provider` VARCHAR(20) DEFAULT 'stripe' COMMENT 'stripe, alipay',
+    `provider` VARCHAR(20) DEFAULT 'stripe' COMMENT 'stripe, alipay, epay',
     `stripe_session_id` VARCHAR(255) NULL,
     `out_trade_no` VARCHAR(64) NULL COMMENT 'Alipay Order ID',
     `qr_code` VARCHAR(500) NULL COMMENT 'Alipay QR Code URL',
@@ -631,3 +640,5 @@ CREATE TABLE IF NOT EXISTS `files` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, BackgroundTasks
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
@@ -13,6 +13,14 @@ from app.services.storage import get_storage_backend, get_storage_backend_async
 from app.utils.sanitizer import validate_and_sanitize_title
 from app.config import get_settings
 from app.api.admin.audit import create_audit_log
+from app.services.cloudflare import purge_cf_cache
+from app.services.settings import get_site_url
+from app.services.image import process_image, get_image_dimensions
+from app.services.watermark import apply_watermark
+from fastapi import UploadFile, File
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images", tags=["Images"])
 config = get_settings()
@@ -254,6 +262,7 @@ async def move_image(
 async def delete_image(
     image_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -282,6 +291,12 @@ async def delete_image(
     await db.delete(image)
     await db.commit()
     
+    # 异步清理 Cloudflare 缓存
+    site_url = await get_site_url()
+    if site_url:
+        image_url = f"{site_url.rstrip('/')}{image.url}"
+        background_tasks.add_task(purge_cf_cache, [image_url])
+    
     # 记录审计日志
     from app.utils.rate_limit import get_real_ip
     ip = get_real_ip(request)
@@ -300,6 +315,7 @@ async def delete_image(
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_multiple_images(
+    background_tasks: BackgroundTasks,
     image_ids: list[int] = Query(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -328,3 +344,185 @@ async def delete_multiple_images(
         delete(Image).where(Image.id.in_([img.id for img in images]))
     )
     await db.commit()
+    
+    # 异步清理 Cloudflare 缓存
+    site_url = await get_site_url()
+    if site_url:
+        image_urls = [f"{site_url.rstrip('/')}{img.url}" for img in images]
+        background_tasks.add_task(purge_cf_cache, image_urls)
+
+
+@router.put("/{image_id}/content", response_model=ImageResponse)
+async def update_image_content(
+    image_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Replace the content of an existing image (Overwrite).
+    Used by the Image Editor.
+    """
+    # 1. Get existing image
+    result = await db.execute(
+        select(Image).where(Image.id == image_id, Image.user_id == user.id)
+    )
+    image = result.scalar_one_or_none()
+    
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="图片不存在"
+        )
+    
+    # 2. File Validation (Reuse logic from upload or keep it simple for editor)
+    # We assume the editor sends a valid image blob
+    content = await file.read()
+    
+    # 3. Process Image
+    import app.services.settings as settings_service
+    compression_quality = await settings_service.get_compression_quality()
+    
+    # Extract extension from filename or use a default
+    ext = file.filename.split('.')[-1] if '.' in file.filename else image.extension
+    
+    processed_content, width, height, final_extension = process_image(
+        content, ext, quality=compression_quality
+    )
+    
+    # 4. Storage Handling
+    storage = await get_storage_backend_async()
+    old_file_path = image.file_path if image.file_path else image.full_filename
+    
+    # Keep the same filename but update extension if it changed
+    new_full_filename = f"{image.filename}.{final_extension}"
+    
+    # Extract date path from old file path if present (e.g. "2024/01/10/name.webp")
+    date_path = None
+    if image.file_path and '/' in image.file_path:
+        date_path = '/'.join(image.file_path.split('/')[:-1])
+    
+    try:
+        new_file_path = await storage.save(processed_content, new_full_filename, date_path)
+        logger.info(f"[Editor] File saved to: {new_file_path}")
+    except Exception as e:
+        logger.error(f"Storage error during edit: {e}")
+        raise HTTPException(status_code=500, detail="保存修改后的图片失败")
+    
+    # 5. Cleanup old file if extension or path changed
+    if new_file_path != old_file_path:
+        await storage.delete(old_file_path)
+    
+    # 6. Update Database
+    image.extension = final_extension
+    image.file_size = len(processed_content)
+    image.file_path = new_file_path
+    image.width = width
+    image.height = height
+    
+    # Update storage_url if it's a full URL
+    image_url = storage.get_url(new_file_path)
+    if image_url.startswith('http'):
+        image.storage_url = image_url
+    
+    await db.commit()
+    await db.refresh(image)
+    
+    # 7. Purge Cache
+    site_url = await get_site_url()
+    if site_url:
+        full_image_url = f"{site_url.rstrip('/')}{image.url}"
+        background_tasks.add_task(purge_cf_cache, [full_image_url])
+    
+    # 8. Audit Log
+    from app.utils.rate_limit import get_real_ip
+    ip = get_real_ip(request)
+    await create_audit_log(
+        db=db,
+        action="edit",
+        ip_address=ip,
+        user_id=user.id,
+        resource_type="image",
+        resource_id=image_id,
+        user_agent=request.headers.get("User-Agent"),
+        details=f"Edited image: {old_file_path} -> {new_file_path}",
+        log_status="success"
+    )
+    
+    return ImageResponse.model_validate(image)
+
+
+from app.schemas.image import ImageResponse, ImageListResponse, ImageMoveRequest, ImageBatchMoveRequest, ImageUpdateRequest, WatermarkConfig
+
+@router.post("/{image_id}/watermark", response_model=ImageResponse)
+async def apply_watermark_to_image(
+    image_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    config: Optional[WatermarkConfig] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Apply current user watermark settings to an existing image.
+    """
+    # 1. Get existing image
+    result = await db.execute(
+        select(Image).where(Image.id == image_id, Image.user_id == user.id)
+    )
+    image = result.scalar_one_or_none()
+    
+    if not image:
+        raise HTTPException(status_code=404, detail="图片不存在")
+        
+    # Check if user is VIP
+    is_vip = False
+    if user.vip_expire_at and user.vip_expire_at > datetime.utcnow():
+        is_vip = True
+        
+    if not is_vip:
+        raise HTTPException(status_code=403, detail="只有 VIP 用户可以使用水印功能")
+
+    # 2. Get file content
+    storage = await get_storage_backend_async()
+    
+    # Resolve actual path (handle legacy images where file_path might be None)
+    current_file_path = image.file_path if image.file_path else image.full_filename
+    
+    try:
+        content = await storage.read(current_file_path)
+    except Exception as e:
+        logger.error(f"Error reading image {image_id} for watermarking: {e}")
+        raise HTTPException(status_code=500, detail="读取图片文件失败")
+        
+    # 3. Apply watermark
+    watermarked_content = apply_watermark(content, user, config.dict() if config else None)
+    
+    # 4. Save back
+    try:
+        # Determine folder path from CURRENT file path to preserve structure
+        folder_path = None
+        if '/' in current_file_path:
+             folder_path = '/'.join(current_file_path.split('/')[:-1])
+             
+        await storage.save(watermarked_content, image.full_filename, folder_path)
+        logger.info(f"[Watermark] Overwritten image {image_id}")
+    except Exception as e:
+        logger.error(f"Error saving watermarked image {image_id}: {e}")
+        raise HTTPException(status_code=500, detail="保存带水印的图片失败")
+        
+    # 5. Update DB (file size might change)
+    image.file_size = len(watermarked_content)
+    image.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(image)
+    
+    # 6. Purge Cache
+    site_url = await get_site_url()
+    if site_url:
+        full_image_url = f"{site_url.rstrip('/')}{image.url}"
+        background_tasks.add_task(purge_cf_cache, [full_image_url])
+        
+    return ImageResponse.model_validate(image)

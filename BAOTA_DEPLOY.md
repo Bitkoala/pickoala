@@ -36,7 +36,7 @@ apt update && apt install -y python3.10-venv pkg-config build-essential default-
     ```
     /www/wwwroot/pickoala/
     ├── backend/
-    ├── frontend/
+    ├── pickoala/
     └── ...
     ```
 
@@ -116,7 +116,7 @@ apt update && apt install -y python3.10-venv pkg-config build-essential default-
 ## 4. 前端部署 (Vue 3)
 
 ### 4.1 编译前端
-1.  在本地电脑进入 `frontend` 目录。
+1.  在本地电脑进入 `pickoala` 目录。
 2.  运行 `npm install` 然后 `npm run build`。
 3.  将生成的 `dist` 文件夹上传到服务器（例如 `/www/wwwroot/pickoala/dist_frontend`）。
 
@@ -127,34 +127,63 @@ apt update && apt install -y python3.10-venv pkg-config build-essential default-
 
 ## 5. 反向代理配置 (连接前后端)
 
+### 5.1 创建缓存目录 (必须)
+为了支持高效的图片缓存，请务必在终端执行以下命令创建缓存目录：
+
+```bash
+# 1. 创建目录
+mkdir -p /www/swift_cache
+# 2. 修改目录所有者为 www 用户 (关键步骤，宝塔默认是 www)
+chown -R www:www /www/swift_cache
+# 3. 赋予读写执行权限
+chmod -R 755 /www/swift_cache
+```
+
+### 5.2 修改配置文件
 1.  进入 **网站** -> 点击刚创建的网站 -> **配置文件**。
 2.  **替换** `server` 块中的 `location` 配置如下：
 
 ```nginx
-    # 【新增】允许最大 2048M (2GB) 的上传限制
-    client_max_body_size 2048M;
+    # 【新增】支持 20GB 上传限制 (20480M)
+    client_max_body_size 20480M;
+
+    # 【新增】开启 Gzip 压缩 (大幅提升加载速度)
+    gzip on;
+    gzip_min_length 1k;
+    gzip_buffers 4 16k;
+    gzip_comp_level 5;
+    gzip_types text/plain application/javascript application/x-javascript text/javascript text/xml text/css;
+    gzip_vary on;
+    gzip_disable "MSIE [1-6]\.";
 
     # 1. 前端路由支持 (解决刷新 404)
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # 2. 转发 API 请求到后端
-    location /api {
+    # 2. 核心转发：API 请求、图片代理（/img）及本地资源（/uploads）
+    # 统一经由后端处理以支持“预览审核”和“隐形代理”
+    location ~ ^/(api|img|uploads) {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        
-        # 增加超时以支持大文件合并和转存 (例如 2GB 文件)
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 600s;
-        proxy_send_timeout 600s;
-    }
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-    # 3. 转发图片资源 (本地存储模式需要)
-    location /uploads {
-        alias /www/wwwroot/pickoala/backend/uploads;
+        # --- 缓存配置 (可选) ---
+        proxy_cache img_cache;
+        proxy_cache_valid 200 302 30d;
+        proxy_cache_key $host$uri$is_args$args;
+        add_header X-Cache-Status $upstream_cache_status;
+
+        # --- 超时与大文件优化 ---
+        # 增加超时到 1小时 (3600s)，以支持 20GB 文件的合并和云端转存
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        
+        # 大文件上传不建议经过 Nginx 缓存请求体
+        proxy_request_buffering off;
     }
 ```
 *(注意：location /uploads 使用 `alias` 直接指向后端上传目录效率更高，前提是前后端在同一台服务器)*
@@ -162,4 +191,19 @@ apt update && apt install -y python3.10-venv pkg-config build-essential default-
 3.  保存即可！现在访问域名即可看到完整网站。
 4.  **最后一步**：
     登录管理员账号 (默认: `admin` / `Admin123`)。
-    进入 **管理面板 -> 系统设置 -> 支付配置**，启用 Stripe 或 支付宝。
+    进入 **管理面板 -> 系统设置 -> 支付配置**，启用 Stripe、支付宝或易支付。
+    *   **支付宝配置**：PicKoala 使用的是“**当面付**”产品。你需要在后台配置：`APPID`、`应用私钥`、`支付宝公钥`。
+    *   **易支付配置**：支持标准易支付协议。需配置 `API 地址`、`PID` 和 `Key`，支持自定义前端显示的名称和 Logo。
+
+## 6. 常见问题与排查
+
+- **系统诊断**: 
+  部署完成后，请以管理员身份登录，进入 **后台管理 -> 系统状态 -> 系统诊断**。系统会自动检测数据库、存储、FFmpeg 等组件的连通性。
+
+- **视频跨域播放**:
+  如果需要在其他网站嵌入视频，请参考根目录下的 `CORS_CONFIG_GUIDE.md` 进行配置。
+
+- **支持超大文件上传 (如 10GB)**:
+  1. **Nginx 配置**: 修改 `client_max_body_size` 为 `10240M` (见上文 Nginx 配置部分)。
+  2. **系统设置**: 登录管理员后台 -> **系统设置** -> **上传设置**，将 "VIP最大视频大小" 修改为 `10737418240` (字节，即 10GB)。
+  3. **增加超时**: 这一步非常重要！请确保 Nginx 配置中的 `proxy_read_timeout` 至少为 `3600s` (1小时)，否则大文件在后端合并时会因超时而中断。

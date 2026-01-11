@@ -184,6 +184,29 @@ DEFAULTS = {
     "payment_alipay_private_key": "",
     "payment_alipay_public_key": "",
 
+    # Payment Settings (Epay)
+    "payment_epay_enabled": "false",
+    "payment_epay_api_url": "",
+    "payment_epay_partner_id": "",
+    "payment_epay_partner_key": "",
+    "payment_epay_name": "易支付",
+    "payment_epay_logo_url": "",
+
+    # OAuth - Google
+    "oauth_google_enabled": "false",
+    "oauth_google_client_id": "",
+    "oauth_google_client_secret": "",
+    
+    # OAuth - Linux.do
+    "oauth_linuxdo_enabled": "false",
+    "oauth_linuxdo_client_id": "",
+    "oauth_linuxdo_client_secret": "",
+    
+    # OAuth - GitHub
+    "oauth_github_enabled": "false",
+    "oauth_github_client_id": "",
+    "oauth_github_client_secret": "",
+
     # VIP Plans
     "payment_vip_month_enabled": "true",
     "payment_vip_month_price": "9.99",
@@ -205,6 +228,16 @@ DEFAULTS = {
     "home_features": '[{"zh": "全球 CDN 加速", "en": "Global CDN", "zh-TW": "全球 CDN 加速"}, {"zh": "三地异地备份", "en": "Geo-redundant Backup", "zh-TW": "三地異地備份"}, {"zh": "永久免费存储", "en": "Permanent Free Storage", "zh-TW": "永久免費存儲"}]',
     "home_table_cols": '{"col_guest": {"zh": "游客", "en": "Guest", "zh-TW": "遊客"}, "col_user": {"zh": "会员", "en": "Member", "zh-TW": "會員"}, "col_vip": {"zh": "VIP", "en": "VIP", "zh-TW": "VIP"}}',
     "home_table_rows": '{"row_single_file": {"zh": "单文件", "en": "Single File", "zh-TW": "單文件"}, "row_frequency": {"zh": "频率", "en": "Frequency", "zh-TW": "頻率"}, "row_album": {"zh": "创建相册", "en": "Create Album", "zh-TW": "創建相冊"}, "row_naming": {"zh": "单图命名", "en": "Image Naming", "zh-TW": "單圖命名"}, "row_management": {"zh": "图片管理", "en": "Image Management", "zh-TW": "圖片管理"}}',
+    
+    # Cloudflare Settings
+    "cf_purge_enabled": "false",
+    "cf_api_token": "",
+    "cf_api_token": "",
+    "cf_zone_id": "",
+    
+    # AI Settings
+    "ai_gemini_api_keys": "",  # Comma-separated list of keys
+    "ai_analysis_enabled": "false",
 }
 
 
@@ -213,6 +246,10 @@ async def load_settings_to_cache():
     global _settings_cache, _cache_loaded
     
     async with _cache_lock:
+        # Double-check if loaded while waiting for lock
+        if _cache_loaded:
+            return
+
         try:
             async with AsyncSessionLocal() as db:
                 result = await db.execute(select(SystemSettings))
@@ -560,23 +597,9 @@ async def is_audit_auto_reject() -> bool:
 
 async def get_audit_violation_image() -> str:
     """Get the URL of the replacement image for rejected images.
-    直接从数据库读取，不使用缓存，确保获取最新值。
+    Uses cache for performance.
     """
-    try:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(SystemSettings).where(SystemSettings.key == "audit_violation_image")
-            )
-            setting = result.scalar_one_or_none()
-            if setting:
-                logger.debug(f"audit_violation_image from DB: '{setting.value}'")
-                if setting.value:
-                    return setting.value
-            else:
-                logger.debug("audit_violation_image not found in DB")
-    except Exception as e:
-        logger.error(f"Failed to get audit_violation_image: {e}")
-    return ""
+    return await get_setting("audit_violation_image", "")
 
 
 # Email settings
@@ -674,10 +697,18 @@ async def get_vip_plans() -> dict:
         }
     return plans
 
+# AI Settings
+async def get_gemini_api_keys() -> str:
+    return await get_setting("ai_gemini_api_keys", "")
+
 
 # Get all public settings (for frontend)
 async def get_public_settings() -> dict:
     """Get settings that can be exposed to frontend."""
+    # Ensure cache is loaded first to minimize lock contention during multiple lookups
+    if not _cache_loaded:
+        await load_settings_to_cache()
+        
     return {
         "site_name": await get_site_name(),
         "site_title": await get_site_title(),
@@ -747,6 +778,19 @@ async def get_public_settings() -> dict:
         # Payment Status
         "payment_stripe_enabled": await is_stripe_enabled(),
         "payment_alipay_enabled": await is_alipay_enabled(),
+        "payment_epay_enabled": await get_setting_bool("payment_epay_enabled", False),
+        "payment_epay_name": await get_setting("payment_epay_name", "易支付"),
+        "payment_epay_logo_url": await get_setting("payment_epay_logo_url", ""),
+        
+        # Casdoor Status
+        
+        # Direct OAuth Status
+        "oauth_google_enabled": await get_setting_bool("oauth_google_enabled", False),
+        "oauth_google_client_id": await get_setting("oauth_google_client_id", ""),
+        "oauth_linuxdo_enabled": await get_setting_bool("oauth_linuxdo_enabled", False),
+        "oauth_linuxdo_client_id": await get_setting("oauth_linuxdo_client_id", ""),
+        "oauth_github_enabled": await get_setting_bool("oauth_github_enabled", False),
+        "oauth_github_client_id": await get_setting("oauth_github_client_id", ""),
         
         
         # Announcement
@@ -763,3 +807,6 @@ async def get_public_settings() -> dict:
         "home_table_cols": await get_setting("home_table_cols", "{}"),
         "home_table_rows": await get_setting("home_table_rows", "{}"),
     }
+async def is_ai_analysis_enabled() -> bool:
+    val = await get_setting("ai_analysis_enabled", "false")
+    return val.lower() == "true"

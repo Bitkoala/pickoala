@@ -54,7 +54,7 @@ class File(Base):
         """Get storage URL."""
         if self.storage_url:
             return self.storage_url
-        return f"/uploads/files/{self.file_path}"
+        return f"/uploads/{self.file_path}"
         
     @property
     def thumbnail_url(self) -> str:
@@ -75,7 +75,7 @@ class File(Base):
         # For now, let's return None or implement proper logic later if needed for cloud.
         # For LOCAL, we just need the path.
         if self.storage_type == 'local':
-             return f"/uploads/files/{self.thumbnail_path}"
+             return f"/uploads/{self.thumbnail_path}"
         # For cloud, we might not have a direct URL property stored. 
         # We stored `file_path`.
         return None # Cloud thumbnail URL logic TBD

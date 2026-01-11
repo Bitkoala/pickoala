@@ -23,6 +23,11 @@ class ImageResponse(BaseModel):
     view_count: int
     album_id: Optional[int] = None
     created_at: datetime
+    
+    # AI Analysis
+    ai_tags: Optional[str] = None  # JSON string
+    ai_description: Optional[str] = None
+    ai_analysis_status: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -55,8 +60,20 @@ class ImageBatchMoveRequest(BaseModel):
     album_id: Optional[int] = None  # None to remove from album
 
 
+
 class ImageUpdateRequest(BaseModel):
     title: Optional[str] = None  # 图片标题，最长200字符
+
+
+class WatermarkConfig(BaseModel):
+    type: str = "text"  # text, image
+    text: Optional[str] = None
+    image_path: Optional[str] = None
+    opacity: int = 50  # 0-100
+    position: str = "bottom-right"  # top-left, top-right, bottom-left, bottom-right, center
+    color: Optional[str] = None # hex color for text
+    size: Optional[int] = None # font size
+
 
 
 class ImageSearchParams(BaseModel):

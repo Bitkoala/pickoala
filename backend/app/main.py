@@ -7,8 +7,13 @@ from contextlib import asynccontextmanager
 import logging
 import os
 from app.config import get_settings
-from app.database import init_db
+from app.database import init_db, AsyncSessionLocal
 from app.redis import init_redis, close_redis
+from sqlalchemy import select, or_
+from sqlalchemy.orm import selectinload
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse, Response
+from app.models.image import Image
+from app.models.file import File
 from app.api import auth, upload, images, albums, user, files, chunk # Added 'files' and 'chunk' here
 from app.api.admin import router as admin_router
 from app.utils.rate_limit import get_real_ip, is_blacklisted
@@ -119,7 +124,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
-            "detail": "Validation error",
+            "detail": "error.validationError",
             "errors": exc.errors()
         }
     )
@@ -130,7 +135,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error"}
+        content={"detail": "error.internalError"}
     )
 
 
@@ -153,115 +158,145 @@ app.include_router(admin_router, prefix="/api")
 
 # Dynamic image serving with status check (replaces static mount)
 # This ensures rejected images cannot be accessed
-from fastapi.responses import FileResponse
-from app.database import AsyncSessionLocal
-from app.models.image import Image, ImageStatus
-from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from datetime import datetime
 
 @app.get("/uploads/{file_path:path}")
+@app.get("/img/{file_path:path}")
 async def serve_image(file_path: str):
     """
-    动态图片访问端点 - 检查图片状态后再返回
+    动态图片/文件访问端点 - 检查文件状态后再返回
     被拒绝的图片返回替换图或 403
-    
-    支持两种路径格式:
-    - 旧格式: /uploads/abc123.png
-    - 新格式: /uploads/2025/12/14/abc123.png (日期文件夹结构)
     """
-    from fastapi.responses import RedirectResponse
     from app.services.settings import get_audit_violation_image
-    
+
     # 安全检查：防止路径遍历攻击
-    # 拒绝包含 .. 或以 / 开头的路径
     if '..' in file_path or file_path.startswith('/') or file_path.startswith('\\'):
         logger.warning(f"Path traversal attempt blocked: {file_path}")
         raise HTTPException(status_code=400, detail="Invalid path")
-    
-    # 从路径中提取文件名 (最后一部分)
-    # 例如: "2025/12/14/abc123.png" -> "abc123.png"
-    # 或者: "abc123.png" -> "abc123.png"
-    filename = file_path.split('/')[-1] if '/' in file_path else file_path
-    
-    if '.' not in filename:
-        raise HTTPException(status_code=404, detail="Image not found")
-    
-    name_part = filename.rsplit('.', 1)[0]
     
     # 构建完整路径并验证它在 upload_path 内
     full_file_path = os.path.normpath(os.path.join(settings.upload_path, file_path))
     upload_path_normalized = os.path.normpath(settings.upload_path)
     
-    # 确保最终路径在 upload_path 目录内（防止路径遍历）
     if not full_file_path.startswith(upload_path_normalized):
         logger.warning(f"Path escape attempt blocked: {file_path} -> {full_file_path}")
         raise HTTPException(status_code=400, detail="Invalid path")
-    
-    # 查询数据库检查状态
+
     async with AsyncSessionLocal() as db:
+        # 1. First, check if it's an Image (common case)
+        filename = file_path.split('/')[-1] if '/' in file_path else file_path
+        if '.' in filename:
+            name_part = filename.rsplit('.', 1)[0]
+            result = await db.execute(
+                select(Image).options(selectinload(Image.user)).where(Image.filename == name_part)
+            )
+            image = result.scalar_one_or_none()
+            
+            if image:
+                # Handle Image Logic (Status check)
+                status_str = str(image.status.value).lower() if hasattr(image.status, 'value') else str(image.status).lower()
+                
+                # Check rejection first
+                if status_str == "rejected":
+                    from app.services.settings import get_audit_violation_image
+                    replacement_url = await get_audit_violation_image()
+                    if replacement_url and replacement_url.strip():
+                        return RedirectResponse(url=replacement_url.strip(), status_code=302)
+                    raise HTTPException(status_code=403, detail="Image removed due to policy violation")
+                
+                cache_control = "public, max-age=31536000" if status_str == "approved" else "no-store, no-cache, must-revalidate, max-age=0"
+                headers = {
+                    "Cache-Control": cache_control,
+                    "CDN-Cache-Control": cache_control,
+                }
+
+                # VIP Watermark Check
+                if image.user and image.user.vip_expire_at and image.user.vip_expire_at > datetime.now() and image.user.watermark_enabled:
+                    try:
+                        from app.services.watermark import apply_watermark
+                        from fastapi.responses import Response
+                        import aiofiles
+                        
+                        # Apply watermark for cloud or local
+                        content = None
+                        if image.storage_type != "local":
+                            # Download from cloud
+                            import httpx
+                            from app.services.storage import get_storage_backend_async
+                            storage = await get_storage_backend_async()
+                            cloud_url = storage.get_url(image.file_path, is_internal=True)
+                            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=15.0) as client:
+                                resp = await client.get(cloud_url)
+                                if resp.status_code == 200:
+                                    content = resp.content
+                        else:
+                            # Read from local
+                            if os.path.isfile(full_file_path):
+                                async with aiofiles.open(full_file_path, 'rb') as f:
+                                    content = await f.read()
+                        
+                        if content:
+                            watermarked_content = apply_watermark(content, image.user)
+                            return Response(
+                                content=watermarked_content,
+                                media_type=image.mime_type,
+                                headers=headers
+                            )
+                    except Exception as e:
+                        logger.error(f"Failed to apply VIP watermark for image {image.id}: {e}")
+
+                # Default serving (Cloud or Local)
+                if image.storage_type != "local":
+                    try:
+                        import httpx
+                        from fastapi.responses import StreamingResponse
+                        from app.services.storage import get_storage_backend_async
+                        
+                        storage = await get_storage_backend_async()
+                        cloud_url = storage.get_url(image.file_path, is_internal=True)
+                        
+                        async def stream_cloud_image():
+                            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=15.0) as client:
+                                try:
+                                    async with client.stream("GET", cloud_url) as resp:
+                                        if resp.status_code >= 400: return
+                                        async for chunk in resp.aiter_bytes(): yield chunk
+                                except Exception: return
+
+                        return StreamingResponse(stream_cloud_image(), media_type=image.mime_type, headers=headers)
+                    except Exception:
+                        if image.storage_url: return RedirectResponse(url=image.storage_url, status_code=302)
+                        raise HTTPException(status_code=502, detail="Failed to fetch image")
+
+                # Local Fallback
+                if not os.path.isfile(full_file_path):
+                    raise HTTPException(status_code=404, detail="Image file not found")
+                
+                return FileResponse(full_file_path, media_type=image.mime_type, headers=headers)
+        
+        # 2. If not Image, check if it's a File (Video/File or its thumbnail)
         result = await db.execute(
-            select(Image).where(Image.filename == name_part)
+            select(File).where(or_(File.file_path == file_path, File.thumbnail_path == file_path))
         )
-        image = result.scalar_one_or_none()
+        file_record = result.scalar_one_or_none()
         
-        # 如果数据库中没有记录
-        if not image:
-            if os.path.isfile(full_file_path):
-                return FileResponse(full_file_path)
-            raise HTTPException(status_code=404, detail="Image not found")
-        
-        # 获取状态值 - 兼容多种情况
-        # MySQL enum 可能返回字符串或 Enum 对象
-        if hasattr(image.status, 'value'):
-            status_str = image.status.value
-        elif isinstance(image.status, str):
-            status_str = image.status
-        else:
-            status_str = str(image.status)
-        
-        # 统一转小写比较
-        status_str = status_str.lower()
-        logger.info(f"Serving image {filename}, raw_status={image.status}, status_str={status_str}")
-        
-        # 被拒绝的图片 - 返回替换图或403
-        if status_str == "rejected":
-            logger.warning(f"BLOCKED: Access to rejected image: {file_path}")
+        if file_record:
+            # Files also support storage_url (though currently mostly local)
+            # Add dynamic redirection here if needed later
+            if not os.path.isfile(full_file_path):
+                 raise HTTPException(status_code=404, detail="File not found")
             
-            # 直接从数据库获取替换图URL
-            replacement_url = await get_audit_violation_image()
-            logger.info(f"Replacement URL: '{replacement_url}'")
+            media_type = file_record.mime_type
+            if file_path == file_record.thumbnail_path:
+                media_type = "image/jpeg"
             
-            if replacement_url and replacement_url.strip():
-                logger.info(f"Redirecting to replacement image: {replacement_url.strip()}")
-                return RedirectResponse(
-                    url=replacement_url.strip(),
-                    status_code=302
-                )
-            else:
-                logger.info("No replacement URL configured, returning 403")
-                raise HTTPException(status_code=403, detail="Image removed due to policy violation")
-        
-        # 文件不存在 - 可能已被删除
-        if not os.path.isfile(full_file_path):
-            logger.warning(f"File not found on disk: {full_file_path}, status={status_str}")
-            # 如果文件不存在，尝试返回替换图
-            replacement_url = await get_audit_violation_image()
-            if replacement_url and replacement_url.strip():
-                return RedirectResponse(url=replacement_url.strip(), status_code=302)
-            raise HTTPException(status_code=404, detail="Image file not found")
-        
-        # 正常返回图片
-        # 只有已审核通过的图片才允许 CDN 缓存
-        if status_str == "approved":
-            cache_control = "public, max-age=31536000"
-        else:
-            # pending 状态的图片不缓存，避免审核后 CDN 仍返回原图
-            cache_control = "no-store, no-cache, must-revalidate, max-age=0"
-        
-        return FileResponse(full_file_path, media_type=image.mime_type, headers={
-            "Cache-Control": cache_control,
-            "CDN-Cache-Control": cache_control,  # 部分 CDN 支持
-            "Cloudflare-CDN-Cache-Control": cache_control,  # Cloudflare 专用
-        })
+            return FileResponse(full_file_path, media_type=media_type, headers={
+                "Cache-Control": "public, max-age=31536000",
+            })
+
+        # 3. If neither, deny access
+        raise HTTPException(status_code=404, detail="Resource not found")
 
 
 # Health check

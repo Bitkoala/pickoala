@@ -18,10 +18,15 @@
 ### 2. 部署后端 (Service)
 1. 在 1Panel 面板 -> **容器** -> **编排 (Compose)** -> **创建编排**。
 2. **名称**：填 `pickoala`。
-3. **内容**：直接复制项目里的 `docker-compose.yml`。
+3. **内容**：
+    *   **选项 A (推荐 - 公共数据库)**：复制 `docker-compose.yml`。
+        *   默认配置已设为连接宿主机的 MySQL（通过 `host.docker.internal`）。
+        *   **注意**：你需要在 1Panel 数据库管理中先创建 `pickoala` 数据库，并导入 `init.sql`。
+    *   **选项 B (独立数据库)**：复制 `docker-compose.standalone.yml`（需重命名或手动指定）。
+        *   这个配置会启动一个独立的 MySQL 容器，数据完全隔离。
+        *   这种方式会自动初始化数据库，无需手动导入 SQL。
     *   *提示：为了匹配此处的路径，你可能需要简单修改 `docker-compose.yml` 里的构建路径，或者直接使用绝对路径 `. context: /opt/pickoala/backend`*。
-    *   **环境变量**：只修改 `DATABASE_URL`、`REDIS_URL` 和 `APP_SECRET_KEY`。
-    *   **重要**：所有高级配置（Stripe/支付宝支付、邮件、云存储）均已移至**后台管理面板**，此处无需配置环境变量。
+    *   **环境变量**：根据选择修改 `DATABASE_URL` (选项 A 需填写真实的面板数据库密码)。
 4. 点击 **确认**。
     *   1Panel 会自动构建镜像并启动服务。
     *   等待状态变为绿色的 "已启动"。
@@ -55,38 +60,49 @@
 请在 **网站设置** -> **配置文件** 里，修改 content 如下：
 
 ```nginx
+# --- 关键修改 0.1：定义缓存路径 (可选) ---
+# proxy_cache_path /www/sites/YOUR_DOMAIN_NAME/cache levels=1:2 keys_zone=img_cache:100m max_size=10g inactive=30d use_temp_path=off;
+
 server {
     listen 80;
     listen [::]:80;
     server_name YOUR_DOMAIN_NAME; # 替换为你的域名
     
-    # ---关键修改 1：允许上传大文件 (支持 >2GB)---
-    client_max_body_size 2048M;
+    # --- 关键修改 0.2：开启 Gzip 压缩 ---
+    gzip on;
+    # ... (保持原样)
 
-    root /www/sites/YOUR_DOMAIN_NAME/index; # 保持默认
+    # --- 关键修改 1：允许上传超大文件 (支持 20GB) ---
+    client_max_body_size 20480M;
+
+    root /www/sites/YOUR_DOMAIN_NAME/index;
     index index.php index.html index.htm;
     
-    # 日志路径保持默认
-    access_log /www/sites/YOUR_DOMAIN_NAME/log/access.log main;
-    error_log /www/sites/YOUR_DOMAIN_NAME/log/error.log;
+    # --- 关键修改 2：核心转发 (支持审核逻辑与隐形代理) ---
+    location ~ ^/(api|img|uploads) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-    # ---关键修改 2：支持 Vue 路由 (防止刷新 404)---
+        # 超时时间延长至 1 小时，支持大文件合并
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_request_buffering off;
+        
+        # 缓存配置 (配合上面的 cache_path)
+        # proxy_cache img_cache;
+        # proxy_cache_valid 200 30d;
+    }
+
+    # --- 关键修改 3：支持 Vue 路由 ---
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # API 代理 (1Panel 自动生成的不要删)
-    include /www/sites/YOUR_DOMAIN_NAME/proxy/*.conf;
-
-    # 安全配置 (保持默认)
-    location ~ ^/(\.user.ini|\.htaccess|\.git|\.env|\.svn|\.project|LICENSE|README.md) {
-        return 404;
-    }
-    location ^~ /.well-known/acme-challenge {
-        allow all;
-        root /usr/share/nginx/html;
-    }
-    error_page 404 /404.html;
+    # API 代理 (1Panel 自动生成的可以酌情整合到上面)
 }
 ```
 
@@ -106,3 +122,20 @@ server {
     *   写一个 `systemd` 服务文件 (配置同 BAOTA_DEPLOY.md，只需修改路径)。
 
 **结论**：用 1Panel 就用 Docker，省心！
+
+## 7. 常见问题与排查
+
+- **系统诊断**: 
+  部署完成后，请以管理员身份登录，进入 **后台管理 -> 系统状态 -> 系统诊断**。系统会自动检测数据库、存储、FFmpeg 等组件的连通性。
+
+- **视频跨域播放**:
+  如果需要在其他网站嵌入视频，请参考根目录下的 `CORS_CONFIG_GUIDE.md` 进行配置。
+
+- **支付宝配置**: PicKoala 使用的是“**当面付**”产品。移动端支持自动拉起 App 支付，PC端显示二维码扫码。需在后台填写 AppID、应用私钥和支付宝公钥。
+
+- **易支付配置**: 支持标准易支付接口协议。需在后台配置 API 地址、PID、商户密钥以及自定义的显示名称和 Logo。
+
+- **支持超大文件上传 (如 20GB)**:
+  1. **Nginx 配置**: 修改 `client_max_body_size` 为 `20480M` (见上文 Nginx 配置部分)。
+  2. **系统设置**: 登录管理员后台 -> **系统设置** -> **上传设置**，将 "VIP最大视频大小" 修改为 `21474836480` (字节，即 20GB)。
+  3. **增加超时**: 这一步非常重要！请确保 Nginx 配置中的 `proxy_read_timeout` 至少为 `3600s` (1小时)，否则大文件在后端合并时会因超时而中断。
