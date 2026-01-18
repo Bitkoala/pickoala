@@ -48,7 +48,7 @@
         </div>
         
         <div v-if="file.expire_at" class="file-warning">
-          此文件将于 {{ formatDate(file.expire_at) }} 过期
+          {{ $t('common.filesExpiresAt', { date: formatDate(file.expire_at) }) }}
         </div>
 
         <div class="action-area">

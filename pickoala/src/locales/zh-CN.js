@@ -77,6 +77,8 @@ export default {
     dontShowAgainSession: '本次不再显示',
     viewDetails: '查看详情',
     apply: '应用',
+    passwordRequired: '请输入提取密码',
+    filesExpiresAt: '此文件将于 {date} 过期',
   },
 
   // 错误信息

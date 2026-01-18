@@ -76,6 +76,8 @@ export default {
     dontShowAgainSession: "Don't show again this session",
     viewDetails: 'View Details',
     apply: 'Apply',
+    passwordRequired: 'Password Required',
+    filesExpiresAt: 'This file will expire on {date}',
   },
 
   // Errors
